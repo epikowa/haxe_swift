@@ -1,6 +1,7 @@
 package swiftcompiler;
 
 // Make sure this code only exists at compile-time.
+import haxe.rtti.Meta;
 #if (macro || swift_runtime)
 import sys.io.File;
 import sys.FileSystem;
@@ -127,23 +128,7 @@ class Compiler extends DirectToStringCompiler {
 		var imports = new Array<String>();
 		//swiftImport meta
 		if (classType.meta.has(':swiftImport')) {
-			for (metaImport in classType.meta.extract(':swiftImport')) {
-				var metaImportName = metaImport.params[0];
-				if (metaImportName == null) {
-					Context.error('Meta :swiftImport requires a String constant', metaImport.pos);
-				}
-				switch (metaImport.params[0].expr) {
-					case EConst(c):
-						switch (c) {
-							case CString(s, kind):
-								imports.push('import ${s}');
-							default:
-								Context.error('Meta :swiftImport requires a String constant', metaImport.pos);
-						}
-					default:
-						Context.error('Meta :swiftImport requires a String constant', metaImport.pos);
-				}
-			}
+			imports = getMetaSwiftImports(classType.meta);
 		}
 		var importsString = currentClassUses.map(i -> 'import ${i}').join('\n') + '\n';
 		return '${importsString}class ${classTypeToSwiftName(classType)} ${superClass != null ? ': ${superClass}' : ''} {\n${fieldsStrings.join('\n')}\n}';
@@ -543,19 +528,31 @@ class Compiler extends DirectToStringCompiler {
 		if (!c.isExtern)
 			return;
 
-		for (meta in c.meta.extract(':swiftImport')) {
-			switch (meta.params[0].expr) {
+		for (meta in getMetaSwiftImports(c.meta)) {
+			currentClassUses.push(meta);
+		}
+	}
+
+	function getMetaSwiftImports(meta:MetaAccess):Array<String> {
+		var imports = new Array<String>();
+		for (metaImport in meta.extract(':swiftImport')) {
+			var metaImportName = metaImport.params[0];
+			if (metaImportName == null) {
+				Context.error('Meta :swiftImport requires a String constant', metaImport.pos);
+			}
+			switch (metaImport.params[0].expr) {
 				case EConst(c):
 					switch (c) {
 						case CString(s, kind):
-							currentClassUses.push(s);
+							imports.push('${s}');
 						default:
-							Context.error('Meta :swiftImport requires a String constant', meta.pos);
+							Context.error('Meta :swiftImport requires a String constant', metaImport.pos);
 					}
 				default:
-					Context.error('Meta :swiftImport requires a String constant', meta.pos);
+					Context.error('Meta :swiftImport requires a String constant', metaImport.pos);
 			}
 		}
+		return imports;
 	}
 }
 
