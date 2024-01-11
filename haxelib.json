@@ -1,0 +1,17 @@
+{
+  "name": "reflaxe.swift",
+  "version": "0.0.1",
+  "description": "A custom Haxe target for swift",
+  "url": "http://example.com",
+  "tags": [],
+  "dependencies": {
+    "reflaxe": "git:https://github.com/SomeRanDev/reflaxe"
+  },
+  "classPath": "src/",
+  "releasenote": "Initial release.",
+  "reflaxe": {
+    "name": "swift",
+    "abbv": "swift",
+    "stdPaths": ["std", "std/swift/_std"]
+  }
+}

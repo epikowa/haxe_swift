@@ -1,0 +1,4 @@
+-D swift
+-D swift
+--macro nullSafety("swiftcompiler")
+--macro swiftcompiler.CompilerInit.Start()

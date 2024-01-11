@@ -1,0 +1,36 @@
+{
+    "configurations": [
+        {
+            "name": "Haxe Interpreter",
+            "type": "haxe-eval",
+            "request": "launch",
+            "args": [
+                "Debug.hxml"
+            ]
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "sourceLanguages": [
+                "swift"
+            ],
+            "args": [],
+            "cwd": "${workspaceFolder:reflaxe_swift}",
+            "name": "Debug MyLibrary",
+            "program": "${workspaceFolder:reflaxe_swift}/.build/debug/MyLibrary",
+            "preLaunchTask": "swift: Build Debug MyLibrary"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "sourceLanguages": [
+                "swift"
+            ],
+            "args": [],
+            "cwd": "${workspaceFolder:reflaxe_swift}",
+            "name": "Release MyLibrary",
+            "program": "${workspaceFolder:reflaxe_swift}/.build/release/MyLibrary",
+            "preLaunchTask": "swift: Build Release MyLibrary"
+        }
+    ]
+}

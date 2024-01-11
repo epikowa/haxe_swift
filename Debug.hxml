@@ -1,0 +1,28 @@
+# -----------------------------------------------------------------------------------
+# Simple hxml file for testing your Reflaxe project.
+# Run this using the `test` command at the root of your project:
+#
+#    haxelib run reflaxe test
+#
+# If you wish to use a specific .html file, add it to the end of the command:
+#
+#    haxelib run reflaxe test path/to/file.hxml
+# -----------------------------------------------------------------------------------
+
+# Set output folder for swift
+-D swift-output=out
+
+# Main function
+-main Code
+-D swift
+-D swift
+-D reflaxe_runtime
+--macro nullSafety("swiftcompiler")
+-lib reflaxe
+-cp test
+-cp src
+-cp std
+-cp std/swift/_std
+--macro swiftcompiler.CompilerInit.Start()
+-D swift-output=Sources/MyLibrary
+swiftcompiler
