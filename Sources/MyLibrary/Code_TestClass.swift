@@ -155,6 +155,6 @@ return 12
 
 			}
 			
-var field:HxEnumConstructor!
-var name:String!
+var field:HxEnumConstructor! 
+var name:String! 
 }

@@ -15,9 +15,9 @@ enum TestEnum {
 }
 
 @:swiftImport('Foundation')
-class TestClass {
+class TestClass implements IHaxeSwift {
 	var field: TestEnum;
-	var name: String;
+	public var name: String;
 
 	public function new(_):Void {
 		new MySocket();
@@ -91,4 +91,8 @@ function main() {
 enum ComplexEnum {
 	User(name:String, surname: String);
 	Company(id:String);
+}
+
+interface IHaxeSwift {
+	var name:String;
 }

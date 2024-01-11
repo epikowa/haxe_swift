@@ -24,6 +24,7 @@ import reflaxe.data.EnumOptionData;
 **/
 class Compiler extends DirectToStringCompiler {
 	var currentClassUses = new Array<String>();
+	var currentClass:ClassType;
 
 	static function classTypeToSwiftName(classType:ClassType) {
 		trace('Module: ${classType.module}, ${classType.pack}, ${classType.name}');
@@ -53,6 +54,8 @@ class Compiler extends DirectToStringCompiler {
 	**/
 	public function compileClassImpl(classType: ClassType, varFields: Array<ClassVarData>, funcFields: Array<ClassFuncData>): Null<String> {
 		currentClassUses = new Array();
+		currentClass = classType;
+
 		trace('-------- Compiling class ${classType.name}, ${classTypeToSwiftName(classType)}');
 		var fieldsStrings:Array<String> = [];
 
@@ -119,7 +122,13 @@ class Compiler extends DirectToStringCompiler {
 					if (field.expr() != null) {
 						defaultString = ' = ${compileExpressionImpl(field.expr(), false)}';
 					}
-					fieldsStrings.push('var ${field.name}:${typeString}${defaultString}!');
+
+					var getSetString = '';
+					if (currentClass.isInterface) {
+						getSetString = '{get set}';
+					}
+
+					fieldsStrings.push('var ${field.name}:${typeString}${defaultString}! ${getSetString}');
 					compileExpressionImpl(field.expr(), true);
 				case FMethod(k):
 			}
@@ -131,7 +140,9 @@ class Compiler extends DirectToStringCompiler {
 			imports = getMetaSwiftImports(classType.meta);
 		}
 		var importsString = currentClassUses.map(i -> 'import ${i}').join('\n') + '\n';
-		return '${importsString}class ${classTypeToSwiftName(classType)} ${superClass != null ? ': ${superClass}' : ''} {\n${fieldsStrings.join('\n')}\n}';
+
+		var classKeyword = classType.isInterface ? 'protocol' : 'class';
+		return '${importsString}${classKeyword} ${classTypeToSwiftName(classType)} ${superClass != null ? ': ${superClass}' : ''} {\n${fieldsStrings.join('\n')}\n}';
 	}
 
 	public function typeToName(type:Type):String {

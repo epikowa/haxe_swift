@@ -1,10 +1,11 @@
 version // 1
-0//1
+0//0
 Code_TestClass.swift
 haxe_ArrayIterator.swift
 haxe_ArrayKeyValueIterator.swift
 Log.swift
 Std.swift
+Code_IHaxeSwift.swift
 Code.swift
 MySocket.swift
 Code_TestEnum.swift

@@ -8,6 +8,6 @@ var e : URL! = Foundation.URL(string :  "mondomaine")
 
 }
 
-var isConnected:Bool!
-var socket:URLSessionWebSocketTask!
+var isConnected:Bool! 
+var socket:URLSessionWebSocketTask! 
 }
