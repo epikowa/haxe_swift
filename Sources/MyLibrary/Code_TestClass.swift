@@ -3,16 +3,29 @@ class TestClass  {
  init(_:String) {
 
 MySocket()
-self.field = TestEnum.One
-haxe_Log.trace(v : "Create Code class!", pos : [
+var test : TestStructure! = TestStructure(name :  "name", id :  "id", password :  "password")
+haxe_Log.trace(v : "test", pos : [
 "fileName": "test/Code.hx",
 "lineNumber": 25,
 "className": "TestClass",
 "methodName": "new"
 ])
-haxe_Log.trace(v : "Here is a Int " + Std.string(v : TestClass.giveMeAInt()), pos : [
+haxe_Log.trace(v : test.name, pos : [
 "fileName": "test/Code.hx",
 "lineNumber": 26,
+"className": "TestClass",
+"methodName": "new"
+])
+self.field = TestEnum.One
+haxe_Log.trace(v : "Create Code class!", pos : [
+"fileName": "test/Code.hx",
+"lineNumber": 28,
+"className": "TestClass",
+"methodName": "new"
+])
+haxe_Log.trace(v : "Here is a Int " + Std.string(v : TestClass.giveMeAInt()), pos : [
+"fileName": "test/Code.hx",
+"lineNumber": 29,
 "className": "TestClass",
 "methodName": "new"
 ])
@@ -20,26 +33,26 @@ TestClass.test()
 var e : HxEnumConstructor = TestEnum.One
 haxe_Log.trace(v : "First value of field", pos : [
 "fileName": "test/Code.hx",
-"lineNumber": 30,
+"lineNumber": 33,
 "className": "TestClass",
 "methodName": "new"
 ])
 haxe_Log.trace(v : self.field, pos : [
 "fileName": "test/Code.hx",
-"lineNumber": 31,
+"lineNumber": 34,
 "className": "TestClass",
 "methodName": "new"
 ])
 self.increment()
 haxe_Log.trace(v : "Second value of field", pos : [
 "fileName": "test/Code.hx",
-"lineNumber": 35,
+"lineNumber": 38,
 "className": "TestClass",
 "methodName": "new"
 ])
 haxe_Log.trace(v : self.field, pos : [
 "fileName": "test/Code.hx",
-"lineNumber": 36,
+"lineNumber": 39,
 "className": "TestClass",
 "methodName": "new"
 ])
@@ -55,7 +68,7 @@ var name : String! = _g
 var surname : String! = _g1
 haxe_Log.trace(v : "I got a user " + name + " " + surname, pos : [
 "fileName": "test/Code.hx",
-"lineNumber": 43,
+"lineNumber": 46,
 "className": "TestClass",
 "methodName": "new"
 ])
@@ -68,7 +81,7 @@ var _g : String! = comp.params[0]as! String
 var id : String! = _g
 haxe_Log.trace(v : "I got company " + id, pos : [
 "fileName": "test/Code.hx",
-"lineNumber": 45,
+"lineNumber": 48,
 "className": "TestClass",
 "methodName": "new"
 ])
@@ -82,7 +95,7 @@ break
 var clos : (String)->Void = {(String) in 
 haxe_Log.trace(v : "This is a closure", pos : [
 "fileName": "test/Code.hx",
-"lineNumber": 49,
+"lineNumber": 52,
 "className": "TestClass",
 "methodName": "new"
 ])
@@ -91,7 +104,7 @@ TestClass.callClosure(closure : clos)
 var url : URL! = Foundation.URL(string :  "http://www.google.com")
 haxe_Log.trace(v : "Mon URL " + url.absoluteString, pos : [
 "fileName": "test/Code.hx",
-"lineNumber": 55,
+"lineNumber": 58,
 "className": "TestClass",
 "methodName": "new"
 ])
@@ -126,7 +139,7 @@ closure = {(a : String) -> Void in
 									
 haxe_Log.trace(v : "polop " + a, pos : [
 "fileName": "test/Code.hx",
-"lineNumber": 60,
+"lineNumber": 63,
 "className": "TestClass",
 "methodName": "callClosure"
 ])
@@ -141,7 +154,7 @@ static func test() -> Void {
 				
 haxe_Log.trace(v : "Testing", pos : [
 "fileName": "test/Code.hx",
-"lineNumber": 66,
+"lineNumber": 69,
 "className": "TestClass",
 "methodName": "test"
 ])

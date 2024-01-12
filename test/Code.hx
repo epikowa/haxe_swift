@@ -21,6 +21,9 @@ class TestClass implements IHaxeSwift {
 
 	public function new(_):Void {
 		new MySocket();
+		var test : TestStructure = new TestStructure('name', 'id', 'password');
+		trace('test');
+		trace(test.name);
 		field = One;
 		trace("Create Code class!");
 		trace('Here is a Int ${Std.string(giveMeAInt())}');
@@ -95,4 +98,16 @@ enum ComplexEnum {
 
 interface IHaxeSwift {
 	var name:String;
+}
+
+@:struct class TestStructure {
+	public var name:String;
+	public var id:String;
+	public var password:String;
+
+	public function new(name:String, id:String, password:String) {
+		this.name = name;
+		this.id = id;
+		this.password = password;
+	}
 }

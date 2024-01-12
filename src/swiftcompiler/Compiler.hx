@@ -142,6 +142,9 @@ class Compiler extends DirectToStringCompiler {
 		var importsString = currentClassUses.map(i -> 'import ${i}').join('\n') + '\n';
 
 		var classKeyword = classType.isInterface ? 'protocol' : 'class';
+		if (classType.meta.has(':struct')) {
+			classKeyword = 'struct';
+		}
 		return '${importsString}${classKeyword} ${classTypeToSwiftName(classType)} ${superClass != null ? ': ${superClass}' : ''} {\n${fieldsStrings.join('\n')}\n}';
 	}
 

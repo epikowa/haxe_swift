@@ -5,7 +5,7 @@ static func main() -> Void {
 				
 haxe_Log.trace(v : "Hello Haxe!", pos : [
 "fileName": "test/Code.hx",
-"lineNumber": 83,
+"lineNumber": 86,
 "className": "_Code.Code_Fields_",
 "methodName": "main"
 ])
