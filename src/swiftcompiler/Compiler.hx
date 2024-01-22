@@ -101,7 +101,8 @@ class Compiler extends DirectToStringCompiler {
 						throw 'Parameters of type ${param.type.getName()} are not supported';
 				}
 			}
-			fieldsStrings.push('${func.isStatic ? 'static' :''} func ${func.field.name}(${paramsNames.join(', ')}) -> ${typeToName(func.ret)} {
+			var throws = func.field.meta.has(':throws');
+			fieldsStrings.push('${func.isStatic ? 'static' :''} func ${func.field.name}(${paramsNames.join(', ')}) ${throws ? 'throws ' :''}-> ${typeToName(func.ret)} {
 				${paramsNamesOnly.map(paramName -> 'var ${paramName} = ${paramName}').join('\n')}
 				${compileExpressionImpl(func.field.expr(), true)}
 			}
@@ -265,6 +266,11 @@ class Compiler extends DirectToStringCompiler {
 
 			var content = '@main\nclass _Main {\n\tstatic func main()->Void {\n\t${s}\n\t}\n}\n';
 			content += '\ntypealias HxEnumConstructor = (_hx_name: String, _hx_index: Int, enum: String, params: Array<Any>)';
+			content += '\nclass HxError:Error {
+				init(value:Any) {
+
+				}
+			}';
 			File.saveContent('${Context.definedValue('swift-output')}/_Main.swift', content);
 		}
 		if (expr == null) {
@@ -511,6 +517,8 @@ class Compiler extends DirectToStringCompiler {
 						throw 'We should not reach that';
 				}
 				return '${compileExpressionImpl(e1, false)}.params[${index}]${paramString}';
+			case TThrow(e):
+				return 'throw HxError(value: ${compileExpressionImpl(e, false)})';
 			default:
 				trace('expr not supported: ${Type.enumConstructor(expr?.expr)}');
 				return 'expr not supported: ${Type.enumConstructor(expr?.expr)}';
