@@ -28,4 +28,9 @@ A compiler that compiles Haxe code into swift.
 > [!IMPORTANT]
 > Regarding `throws` on functions' definitions:  
 > Whenever a function uses the `throw` keyword it is automatically marked as `throws` in the swift code and the Haxe metadata `:throws` is automatically added to it.  
-> Because this addition happens when the function is generated its metadata may have been accessed by the compiler before they included `:throws`. (Notably when generating a call to the function and trying to determine if the `try` keyword should be added before)
+
+> [!WARNING]
+> This detection does not currently correctly work for constructors.
+
+> [!WARNING]
+> The `try` keyword isn't automatically added to calls to initializers (that is using the Haxe `new` keyword) at the moment.
