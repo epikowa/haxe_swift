@@ -54,6 +54,7 @@ class TestClass implements IHaxeSwift {
 
 		callClosure(clos);
 
+		Reflect.fields({});
 		var url = new URL('http://www.google.com');
 		trace('Mon URL ' + url.absoluteString);
 	}
@@ -85,6 +86,7 @@ class TestClass implements IHaxeSwift {
 function main() {
 	trace("Hello Haxe!");
 	new TestClass('');
+	Reflect.fields({});
 	// final c = new TestClass("ha");
 	// for(i in 0...3) {
 	// 	c.increment();

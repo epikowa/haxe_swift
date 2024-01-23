@@ -27,13 +27,11 @@ class Compiler extends DirectToStringCompiler {
 	var currentClass:ClassType;
 
 	static function classTypeToSwiftName(classType:ClassType) {
-		trace('Module: ${classType.module}, ${classType.pack}, ${classType.name}');
 		var comps = new Array<String>();
 		// if (classType.module != null)
 		// 	comps.push(classType.module);
 		comps = comps.concat(classType.pack);
 		comps.push(classType.name);
-		trace('++++++ comps ${comps}');
 		return comps.join('_');
 	}
 
@@ -56,7 +54,6 @@ class Compiler extends DirectToStringCompiler {
 		currentClassUses = new Array();
 		currentClass = classType;
 
-		trace('-------- Compiling class ${classType.name}, ${classTypeToSwiftName(classType)}');
 		var fieldsStrings:Array<String> = [];
 
 		var superClass:String = null;
@@ -73,11 +70,12 @@ class Compiler extends DirectToStringCompiler {
 					constructorParams.push('${arg.name}:${typeToName(arg.t)}');
 				}
 			default:
-				// trace('Constructor ${Type.enumConstructor(classType.constructor?.get()?.type)}');
 		}
 
 		if (classType.constructor?.get().expr() != null) {
-			fieldsStrings.push('${hasSuperConstructor ? 'override ' : ' '}init(${constructorParams.join(', ')}) {\n${compileExpressionImpl(classType.constructor?.get().expr(), true)}\n}\n');
+			var throws = classType.constructor.get().meta.has(':throws');
+			var rethrows = classType.constructor.get().meta.has(':rethrows');
+			fieldsStrings.push('${hasSuperConstructor ? 'override ' : ' '}init(${constructorParams.join(', ')}) ${throws ? 'throws ' :''}${rethrows ? 'rethrows ' :''}{\n${compileExpressionImpl(classType.constructor?.get().expr(), true)}\n}\n');
 		}
 		for (func in funcFields) {
 			if (func.field.name == 'new') {
@@ -88,7 +86,7 @@ class Compiler extends DirectToStringCompiler {
 			for (param in func.args) {
 				switch (param.type) {
 					case TInst(t, params):
-						paramsNames.push('${param.name} : ${classTypeToSwiftName(t.get())}');
+						paramsNames.push('${param.name} : ${typeToName(param.type)}');
 					case TDynamic(t):
 						paramsNames.push('${param.name} : Any');
 					case TAbstract(t, params):
@@ -102,7 +100,12 @@ class Compiler extends DirectToStringCompiler {
 				}
 			}
 			var throws = func.field.meta.has(':throws');
-			fieldsStrings.push('${func.isStatic ? 'static' :''} func ${func.field.name}(${paramsNames.join(', ')}) ${throws ? 'throws ' :''}-> ${typeToName(func.ret)} {
+			var rethrows = func.field.meta.has(':rethrows');
+			var pS = func.field.params.map(p -> {
+				typeToName(p.t);
+			}).join(', ');
+			var hasParams = func.field.params.length > 0;
+			fieldsStrings.push('${func.isStatic ? 'static' :''} func ${func.field.name}${hasParams ? '<${pS}>' : ''}(${paramsNames.join(', ')}) ${throws ? 'throws ' :''}${rethrows ? 'rethrows ' :''}-> ${typeToName(func.ret)} {
 				${paramsNamesOnly.map(paramName -> 'var ${paramName} = ${paramName}').join('\n')}
 				${compileExpressionImpl(func.field.expr(), true)}
 			}
@@ -110,7 +113,6 @@ class Compiler extends DirectToStringCompiler {
 		}
 
 		for (field in classType.fields.get()) {
-			trace('***** ${field.name}');
 			switch (field.kind) {
 				case FVar(read, write):
 					var typeString = if (field.type.getName() == 'TEnum') {
@@ -150,14 +152,25 @@ class Compiler extends DirectToStringCompiler {
 	}
 
 	public function typeToName(type:Type):String {
-		trace(type);
 		switch (type) {
 			case TInst(t, params):
+				var p = new Array<String>();
+				for (param in params) {
+					p.push(typeToName(param));
+				}
+				if (p.length > 0) {
+					return classTypeToSwiftName(t.get()) + '<${p.join(', ')}>';
+				} 
 				return classTypeToSwiftName(t.get());
 			case TDynamic(t):
 				return 'Any';
 			case TAbstract(t, params):
 				switch (t.get().name) {
+					case 'Null':
+						var pS = params.map((p) -> {
+							typeToName(p);
+						}).join(', ');
+						return 'Optional<${pS}>';
 					default:
 						return t.get().name;
 				}
@@ -187,7 +200,6 @@ class Compiler extends DirectToStringCompiler {
 	**/
 	public function compileEnumImpl(enumType: EnumType, constructs: Array<EnumOptionData>): Null<String> {
 		// TODO: 
-		trace('------ Compiling enum ${enumType.name}');
 		var cases = new Array<String>();
 		var constructIndex = 0;
 		for (construct in constructs) {
@@ -229,8 +241,14 @@ class Compiler extends DirectToStringCompiler {
 				for (param in el) {
 					paramsString.push(printCode(param));
 				}
+
+				var shouldAddTry = false;
 				switch (e.expr) {
 					case TField(_, FStatic(c, cf)):
+						if (cf.get().meta.has(':throws')) {
+							shouldAddTry = true;
+							trace('≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠ YEAH');
+						}
 						if (c.toString() == "swift.Syntax" && cf.toString() == 'code') {
 							return printCode(el[0]);
 						} else if (c.toString() == "Std" && cf.toString() == 'string') {
@@ -238,7 +256,7 @@ class Compiler extends DirectToStringCompiler {
 						}
 					default:
 				}
-				return '${compileExpressionImpl(e, false)}(${paramsString.join(', ')})';
+				return '${shouldAddTry ? 'try ' : ''}${compileExpressionImpl(e, false)}(${paramsString.join(', ')})';
 			default:
 				throw 'Unsupported in swift.Syntax ${expr.expr.getName()}';
 		}
@@ -276,10 +294,8 @@ class Compiler extends DirectToStringCompiler {
 		if (expr == null) {
 			return '';
 		}
-		trace('######## ${expr.expr.getName()}');
 		switch (expr.expr) {
 			case TFunction(tfunc):
-				trace(tfunc.t);
 				return compileExpressionImpl(tfunc.expr, false);
 			case TBlock(el):
 				var elReps = new Array<String>();
@@ -289,6 +305,14 @@ class Compiler extends DirectToStringCompiler {
 				return '\n${elReps.join('\n')}\n';
 			case TCall(e, el):
 				trace('TCALL', e, el);
+				var shouldAddTry = false;
+				switch (e.expr) {
+					case TField(_, FStatic(c, cf)):
+						if (cf.get().meta.has(':throws')) {
+							shouldAddTry = true;
+						}
+					default:
+				}
 				var paramsNames = new Array<String>();
 				switch (e.t) {
 					case TFun(args, ret):
@@ -314,7 +338,7 @@ class Compiler extends DirectToStringCompiler {
 						}
 					default:
 				}
-				return '${compileExpressionImpl(e, false)}(${paramsString.join(', ')})';
+				return '${shouldAddTry ? 'try ' : ''}${compileExpressionImpl(e, false)}(${paramsString.join(', ')})';
 			case TField(e, fa):
 				switch (fa) {
 					case FInstance(c, params, cf):
@@ -328,11 +352,8 @@ class Compiler extends DirectToStringCompiler {
 						return 'UNSUPPORTED';
 				}
 			case TTypeExpr(m):
-				trace(m.getName());
 				switch (m) {
 					case TClassDecl(c):
-						$type(c);
-						trace(c.toString());
 						addSwiftImports(c.get());
 						//currentClassUses.push(classTypeToSwiftName(c.get()));
 						return classTypeToSwiftName(c.get());
@@ -466,7 +487,6 @@ class Compiler extends DirectToStringCompiler {
 			case TIf(econd, eif, eelse):
 				return 'if (${compileExpressionImpl(econd, false)}) {\n${eif, compileExpressionImpl(eif, false)}} else {\n${eelse, compileExpressionImpl(eelse, false)}';
 			case TEnumIndex(e1):
-				trace(e1);
 				return '${compileExpressionImpl(e1, false)}._hx_index';
 			case TSwitch(e, cases, edef):
 				var casesString = new Array<String>();
@@ -500,7 +520,6 @@ class Compiler extends DirectToStringCompiler {
 				casesString.push('default:\n${defaultString}\nbreak');
 				return 'switch (${compileExpressionImpl(e, false)}) {\n${casesString.join('\n')}\n}';
 			case TEnumParameter(e1, ef, index):
-				trace(e1);
 				var paramString = switch (e1.t) {
 					case TEnum(t, params):
 						if (!t.get().constructs.exists(ef.name)) {
@@ -540,7 +559,6 @@ class Compiler extends DirectToStringCompiler {
 		var comps = new Array<String>();
 		comps = comps.concat(enumType.pack);
 		comps.push(enumType.name);
-		trace('++++++ comps ${comps}');
 		return comps.join('_');
 	}
 

@@ -23,3 +23,4 @@ A compiler that compiles Haxe code into swift.
   ```
   This may be modified in the future so that such initializer is automatically added.
 * :throws : added before a function declaration it will declare this function with `throws`.
+* :rethrows : added before a function declaration it will declare this function with `rethrows`.
