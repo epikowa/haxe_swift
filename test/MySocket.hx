@@ -1,13 +1,13 @@
 package;
 
-class MySocket extends NSObject implements URLSessionDelegate {
-    var isConnected:Bool = false;
+class MySocket implements URLSessionDelegate {
+    var isConnected:Bool;
     var socket:URLSessionWebSocketTask;
 
     public function new() {
-        super();
+        // super();
 
-        var e = new URL("mondomaine");
+        // var e = new URL("mondomaine");
     }
 }
 

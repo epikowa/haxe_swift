@@ -1,8 +1,9 @@
 package swiftcompiler;
 
 // Make sure this code only exists at compile-time.
-import haxe.rtti.Meta;
 #if (macro || swift_runtime)
+import haxe.ds.GenericStack;
+import haxe.rtti.Meta;
 import sys.io.File;
 import sys.FileSystem;
 import reflaxe.helpers.Context;
@@ -25,7 +26,11 @@ import reflaxe.data.EnumOptionData;
 class Compiler extends DirectToStringCompiler {
 	var currentClassUses = new Array<String>();
 	var currentClass:ClassType;
-	var currentFuncDetails:FuncDetails;
+	var currentFuncDetails(get, never):FuncDetails;
+	var funcDetailsStack:GenericStack<FuncDetails> = new GenericStack();
+	function get_currentFuncDetails():FuncDetails {
+		return funcDetailsStack.first();
+	}
 
 	static function classTypeToSwiftName(classType:ClassType) {
 		var comps = new Array<String>();
@@ -76,9 +81,10 @@ class Compiler extends DirectToStringCompiler {
 		if (classType.constructor?.get().expr() != null) {
 			var throws = classType.constructor.get().meta.has(':throws');
 			var rethrows = classType.constructor.get().meta.has(':rethrows');
-			currentFuncDetails = new FuncDetails();
+			funcDetailsStack.add(new FuncDetails([classType.name, 'new'].join('.')));
 			var funcBody = compileExpressionImpl(classType.constructor?.get().expr(), true);
 			throws = throws || currentFuncDetails.throws;
+			funcDetailsStack.pop();
 			fieldsStrings.push('${hasSuperConstructor ? 'override ' : ' '}init(${constructorParams.join(', ')}) ${throws ? 'throws ' :''}${rethrows ? 'rethrows ' :''}{\n${funcBody}\n}\n');
 		}
 		for (func in funcFields) {
@@ -110,12 +116,17 @@ class Compiler extends DirectToStringCompiler {
 			}).join(', ');
 			var hasParams = func.field.params.length > 0;
 
-			currentFuncDetails = new FuncDetails();
-			var funcBody = compileExpressionImpl(func.field.expr(), true);
 
+			funcDetailsStack.add(new FuncDetails([classType.name, func.field.name].join('.')));
+			var funcBody = compileExpressionImpl(func.field.expr(), false);
+
+
+			var initialThrows = throws;
 			throws = throws || currentFuncDetails.throws;
 			if (throws && !(func.field.meta.has(':throw'))) {
+				trace('^^^^^^^', initialThrows, currentFuncDetails.throws);
 				func.field.meta.add(':throws', [], Context.currentPos());
+				trace('ADDING ', func.field.name, currentFuncDetails.name);
 			}
 
 			fieldsStrings.push('${func.isStatic ? 'static' :''} func ${func.field.name}${hasParams ? '<${pS}>' : ''}(${paramsNames.join(', ')}) ${throws ? 'throws ' :''}${rethrows ? 'rethrows ' :''}-> ${typeToName(func.ret)} {
@@ -123,6 +134,7 @@ class Compiler extends DirectToStringCompiler {
 				${funcBody}
 			}
 			');
+			funcDetailsStack.pop();
 		}
 
 		for (field in classType.fields.get()) {
@@ -317,7 +329,7 @@ class Compiler extends DirectToStringCompiler {
 				}
 				return '\n${elReps.join('\n')}\n';
 			case TCall(e, el):
-				trace('TCALL', e, el);
+				// trace('TCALL', e, el);
 				var shouldAddTry = false;
 				switch (e.expr) {
 					case TField(_, FStatic(c, cf)):
@@ -348,6 +360,18 @@ class Compiler extends DirectToStringCompiler {
 					case TField(_, FStatic(c, cf)):
 						if (c.toString() == "swift.Syntax" && cf.toString() == 'code') {
 							return printCode(el[0]);
+						}
+						// We need to call the function generation so that it gets marked with automatic metas (see explanations on throws in the README)
+						funcDetailsStack.add(new FuncDetails([c.toString(), cf.toString()].join('.')));
+						//For some reason Std.string is infinitely recursive.
+						//Fortunately we kinda know that this function is not a problem.
+						if (!(c.toString() == 'Std' && cf.toString() == 'string')) {
+							compileExpressionImpl(cf.get().expr(), false);
+							shouldAddTry = shouldAddTry || funcDetailsStack.first().throws;
+						}
+						funcDetailsStack.pop();
+						if (currentFuncDetails != null) {
+							currentFuncDetails.throws = currentFuncDetails.throws || shouldAddTry;
 						}
 					default:
 				}
@@ -457,6 +481,15 @@ class Compiler extends DirectToStringCompiler {
 						return 'UNSUPPORTED  ${Type.enumConstructor(v.t)}';
 				}} = ${exprString}';
 			case TNew(c, params, el):
+				var shouldAddTry = c.get().constructor.get().meta.has(':throws');
+
+				// We need to call the function generation so that it gets marked with automatic metas (see explanations on throws in the README)
+				funcDetailsStack.add(new FuncDetails([c.toString(), 'new'].join('.')));
+				compileExpressionImpl(c.get().constructor.get().expr(), false);
+				shouldAddTry = shouldAddTry || funcDetailsStack.first().throws;
+				funcDetailsStack.pop();
+				
+
 				addSwiftImports(c.get());
 				var constructorType = c.get().constructor.get().type;
 
@@ -494,7 +527,7 @@ class Compiler extends DirectToStringCompiler {
 					el.map(el -> compileExpressionImpl(el, false)).join(', ');
 				}
 				
-				return '${name}(${paramsStrings.join(', ')})';
+				return '${shouldAddTry ? 'try ' : ''}${name}(${paramsStrings.join(', ')})';
 			case TParenthesis(e):
 				return '(${compileExpressionImpl(e, false)})';
 			case TIf(econd, eif, eelse):
@@ -611,8 +644,13 @@ class Compiler extends DirectToStringCompiler {
 }
 
 class FuncDetails {
+	public var name:String = '()';
 	public var throws:Bool = false;
 
-	public function new() {}
+	public function new(?name:String) {
+		if (name != null) {
+			this.name = name;
+		}
+	}
 }
 #end
