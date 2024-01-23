@@ -25,6 +25,7 @@ import reflaxe.data.EnumOptionData;
 class Compiler extends DirectToStringCompiler {
 	var currentClassUses = new Array<String>();
 	var currentClass:ClassType;
+	var currentFuncDetails:FuncDetails;
 
 	static function classTypeToSwiftName(classType:ClassType) {
 		var comps = new Array<String>();
@@ -75,7 +76,10 @@ class Compiler extends DirectToStringCompiler {
 		if (classType.constructor?.get().expr() != null) {
 			var throws = classType.constructor.get().meta.has(':throws');
 			var rethrows = classType.constructor.get().meta.has(':rethrows');
-			fieldsStrings.push('${hasSuperConstructor ? 'override ' : ' '}init(${constructorParams.join(', ')}) ${throws ? 'throws ' :''}${rethrows ? 'rethrows ' :''}{\n${compileExpressionImpl(classType.constructor?.get().expr(), true)}\n}\n');
+			currentFuncDetails = new FuncDetails();
+			var funcBody = compileExpressionImpl(classType.constructor?.get().expr(), true);
+			throws = throws || currentFuncDetails.throws;
+			fieldsStrings.push('${hasSuperConstructor ? 'override ' : ' '}init(${constructorParams.join(', ')}) ${throws ? 'throws ' :''}${rethrows ? 'rethrows ' :''}{\n${funcBody}\n}\n');
 		}
 		for (func in funcFields) {
 			if (func.field.name == 'new') {
@@ -105,9 +109,18 @@ class Compiler extends DirectToStringCompiler {
 				typeToName(p.t);
 			}).join(', ');
 			var hasParams = func.field.params.length > 0;
+
+			currentFuncDetails = new FuncDetails();
+			var funcBody = compileExpressionImpl(func.field.expr(), true);
+
+			throws = throws || currentFuncDetails.throws;
+			if (throws && !(func.field.meta.has(':throw'))) {
+				func.field.meta.add(':throws', [], Context.currentPos());
+			}
+
 			fieldsStrings.push('${func.isStatic ? 'static' :''} func ${func.field.name}${hasParams ? '<${pS}>' : ''}(${paramsNames.join(', ')}) ${throws ? 'throws ' :''}${rethrows ? 'rethrows ' :''}-> ${typeToName(func.ret)} {
 				${paramsNamesOnly.map(paramName -> 'var ${paramName} = ${paramName}').join('\n')}
-				${compileExpressionImpl(func.field.expr(), true)}
+				${funcBody}
 			}
 			');
 		}
@@ -537,6 +550,7 @@ class Compiler extends DirectToStringCompiler {
 				}
 				return '${compileExpressionImpl(e1, false)}.params[${index}]${paramString}';
 			case TThrow(e):
+				currentFuncDetails.throws = true;
 				return 'throw HxError(value: ${compileExpressionImpl(e, false)})';
 			default:
 				trace('expr not supported: ${Type.enumConstructor(expr?.expr)}');
@@ -596,4 +610,9 @@ class Compiler extends DirectToStringCompiler {
 	}
 }
 
+class FuncDetails {
+	public var throws:Bool = false;
+
+	public function new() {}
+}
 #end

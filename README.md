@@ -24,3 +24,8 @@ A compiler that compiles Haxe code into swift.
   This may be modified in the future so that such initializer is automatically added.
 * :throws : added before a function declaration it will declare this function with `throws`.
 * :rethrows : added before a function declaration it will declare this function with `rethrows`.
+
+> [!NOTE]
+> Regarding `throws` on functions' definitions:
+> Whenever a function uses the `throw` keyword it is automatically marked as `throws` in the swift code and the Haxe metadata `:throws` is automatically added to it.
+> Because this addition happens when the function is generated its metadata may have been accessed by the compiler before they included `:throws`. (Notably when generating a call to the function and trying to determine if the `try` keyword should be added before)
