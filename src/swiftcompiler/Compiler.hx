@@ -82,7 +82,7 @@ class Compiler extends DirectToStringCompiler {
 			var throws = classType.constructor.get().meta.has(':throws');
 			var rethrows = classType.constructor.get().meta.has(':rethrows');
 			funcDetailsStack.add(new FuncDetails([classType.name, 'new'].join('.')));
-			var funcBody = compileExpressionImpl(classType.constructor?.get().expr(), true);
+			var funcBody = compileExpressionImpl(classType.constructor?.get().expr(), false);
 			throws = throws || currentFuncDetails.throws;
 			funcDetailsStack.pop();
 			fieldsStrings.push('${hasSuperConstructor ? 'override ' : ' '}init(${constructorParams.join(', ')}) ${throws ? 'throws ' :''}${rethrows ? 'rethrows ' :''}{\n${funcBody}\n}\n');
@@ -289,6 +289,8 @@ class Compiler extends DirectToStringCompiler {
 		return '';
 	}
 
+	var mainGenerated = false;
+
 	/**
 		This is the final required function.
 		It compiles the expressions generated from Haxe.
@@ -300,7 +302,8 @@ class Compiler extends DirectToStringCompiler {
 		https://api.haxe.org/haxe/macro/TypedExpr.html
 	**/
 	public function compileExpressionImpl(expr: TypedExpr, topLevel: Bool): Null<String> {
-		if (topLevel) {
+		if (!mainGenerated) {
+			mainGenerated = true;
 			var mainExpr = Context.getMainExpr();
 			var s = compileExpressionImpl(mainExpr, false);
 			if (!FileSystem.exists(Context.definedValue('swift-output'))) {
@@ -526,6 +529,7 @@ class Compiler extends DirectToStringCompiler {
 				if (el != null) {
 					el.map(el -> compileExpressionImpl(el, false)).join(', ');
 				}
+				currentFuncDetails.throws = currentFuncDetails.throws || shouldAddTry;
 				
 				return '${shouldAddTry ? 'try ' : ''}${name}(${paramsStrings.join(', ')})';
 			case TParenthesis(e):
