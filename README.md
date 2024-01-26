@@ -24,7 +24,58 @@ A compiler that compiles Haxe code into swift.
   This may be modified in the future so that such initializer is automatically added.
 * :throws : added before a function declaration it will declare this function with `throws`.
 * :rethrows : added before a function declaration it will declare this function with `rethrows`.
-
 > [!IMPORTANT]
 > Regarding `throws` on functions' definitions:  
 > Whenever a function uses the `throw` keyword it is automatically marked as `throws` in the swift code and the Haxe metadata `:throws` is automatically added to it.  
+* :swiftLabels(param, 'label') : set `label` as the label for `param`. See the [Swift Labels section](#swift-labels) for explanations.
+
+## <a name="swiftLabels"></a> Swift Labels
+The swift language uses a weird concept of 'labels' that can somehow change parameters' names.  
+Suppose the following code:
+
+```swift
+func testFunction(testLabel test:String) -> String {
+  return test;
+}
+```
+
+It would be called in the following way:
+```swift
+  testFunction(testLabel: "TestString")
+```
+
+As you can see, while the function code still uses `test` as the parameter's name, the call site will use the specified `testLabel` label.
+
+But there's a catch : a special `_` label that specifies that the call site should not specify a label:
+
+```swift
+func testFunction(_ test:String) -> String {
+  return test;
+}
+
+testFunction("TestString")
+```
+
+You can use the `@:swiftLabels(field, 'label')` meta in front of your functions to define labels:
+
+```haxe
+@:swiftLabels(param1, '_')
+@:swiftLabels(param2, 'secondParam')
+function testFunction(param1:String, param2:String, param3:String):Void {
+
+}
+```
+
+Will result in the following being generated:
+
+```swift
+func testFunction(_ param1:String, secondParam param2:String, param3:String):Void {
+
+}
+```
+
+which will then generate the following calls:
+
+```swift
+testFunction("First string", secondParam: "Second string", param3: "Third String")
+```
