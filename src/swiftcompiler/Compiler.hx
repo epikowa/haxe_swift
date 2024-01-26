@@ -62,6 +62,68 @@ class Compiler extends DirectToStringCompiler {
 	}
 
 	/**
+		Returns a Map where keys are the parameter's name and value is the label.
+	**/
+	function getLabelsFromClassField(cf:ClassField):Map<String, String> {
+		var meta = cf.meta;
+		return getLabelsFromMeta(meta);
+	}
+
+	function getLabelsFromMeta(meta:MetaAccess):Map<String, String> {
+		var map = new Map<String, String>();
+
+		if (meta.has(':swiftLabels')) {
+			for (entry in meta.extract(':swiftLabels')) {
+				var fieldName:String = switch (entry.params[0].expr) {
+					case EConst(c):
+						switch (c) {
+							case CIdent(s):
+								s;
+							default: 
+								Context.error('First parameter of @:swiftLabels should be an identifier', Context.currentPos());
+						}
+					default: Context.error('First parameter of @:swiftLabels should be an identifier', Context.currentPos());
+				}
+				var label = switch (entry.params[1].expr) {
+					case EConst(c):
+						switch (c) {
+							case CString(s):
+								s;
+							default: Context.error('Second parameter of @:swiftLabels should be a String', Context.currentPos());
+						}
+					default: Context.error('Second parameter of @:swiftLabels should be a String', Context.currentPos());
+				}
+
+				map.set(fieldName, label);
+			}
+		}
+
+		return map;
+	}
+
+	/**
+		Returns the label for the specified parameter.
+		If no label has been specified, returns the parameter's name.
+	**/
+	function getLabelForParam(cf:ClassField, param:String):String {
+		var map = getLabelsFromClassField(cf);
+		
+		return getLabelFromMap(map, param);
+	}
+
+	/**
+		Returns the label for the specified parameter.
+		If no label has been specified, returns the parameter's name.
+	**/
+	function getLabelFromMap(map:Map<String, String>, param:String) {
+		if (!map.exists(param)) {
+			return param;
+		}
+
+		return map.get(param);
+	}
+
+	/**
 		This is the function from the BaseCompiler to override to compile Haxe classes.
 		Given the haxe.macro.ClassType and its variables and fields, return the output String.
 		If `null` is returned, the class is ignored and nothing is compiled for it.
@@ -103,24 +165,32 @@ class Compiler extends DirectToStringCompiler {
 			if (func.field.name == 'new') {
 				continue;
 			}
+
+			var labels = getLabelsFromMeta(func.field.meta);
 			var paramsNames = new Array<String>();
 			var paramsNamesOnly = new Array<String>();
+
+			var paramLabelAndName = (paramName) -> {
+				var label = getLabelFromMap(labels, paramName);
+				if (label == paramName) return paramName;
+				return '${label} ${paramName}';
+			}
+
 			for (param in func.args) {
 				switch (param.type) {
 					case TInst(t, params):
-						paramsNames.push('${param.name} : ${typeToName(param.type)}');
+						paramsNames.push('${paramLabelAndName(param.name)} : ${typeToName(param.type)}');
 					case TDynamic(t):
-						paramsNames.push('${param.name} : Any');
+						paramsNames.push('${paramLabelAndName(param.name)} : Any');
 					case TAbstract(t, params):
 						// TODO: Handle abstracts
 						if (isAbstractTypeNullT(t.get())) {
-							paramsNames.push('${param.name} : Optional<${typeToName(params[0])}>');
+							paramsNames.push('${paramLabelAndName(param.name)} : Optional<${typeToName(params[0])}>');
 						} else {
-							$type(t.get());
-							paramsNames.push('${param.name} : ${typeToName(t.get().type)}');
+							paramsNames.push('${paramLabelAndName(param.name)} : ${typeToName(t.get().type)}');
 						}
 					case TFun(args, ret):
-						paramsNames.push('${param.name} : ${funcDetailsToSignature(args, ret)}');
+						paramsNames.push('${paramLabelAndName(param.name)} : ${funcDetailsToSignature(args, ret)}');
 						paramsNamesOnly.push(param.name);
 					default:
 						throw 'Parameters of type ${param.type.getName()} are not supported';
@@ -216,7 +286,6 @@ class Compiler extends DirectToStringCompiler {
 	public function typeToName(type:Type):String {
 		switch (type) {
 			case TInst(t, params):
-				$type(t.get());
 				var p = new Array<String>();
 				for (param in params) {
 					p.push(typeToName(param));
@@ -378,6 +447,7 @@ class Compiler extends DirectToStringCompiler {
 		if (expr == null) {
 			return '';
 		}
+
 		switch (expr.expr) {
 			case TFunction(tfunc):
 				return compileExpressionImpl(tfunc.expr, false);
@@ -388,13 +458,17 @@ class Compiler extends DirectToStringCompiler {
 				}
 				return '\n${elReps.join('\n')}\n';
 			case TCall(e, el):
-				// trace('TCALL', e, el);
 				var shouldAddTry = false;
+				var labelsMap = new Map<String, String>();
 				switch (e.expr) {
 					case TField(_, FStatic(c, cf)):
+						labelsMap = getLabelsFromClassField(cf.get());
 						if (cf.get().meta.has(':throws')) {
 							shouldAddTry = true;
 						}
+						trace('------ static');
+					case TField(_, FInstance(_, _, cf)):
+						labelsMap = getLabelsFromClassField(cf.get());
 					default:
 				}
 				var paramsNames = new Array<String>();
@@ -405,11 +479,17 @@ class Compiler extends DirectToStringCompiler {
 						}
 					default:
 				}
+				
 				var paramsString = new Array<String>();
 				var i = 0;
 				for (param in el) {
 					if (paramsNames[i] != null && paramsNames[i] != '') {
-						paramsString.push('${paramsNames[i]} : ${compileExpressionImpl(param, false)}');
+						var label = getLabelFromMap(labelsMap, paramsNames[i]);
+						if (label != '_') {
+							paramsString.push('${label} : ${compileExpressionImpl(param, false)}');
+						} else {
+							paramsString.push('${compileExpressionImpl(param, false)}');
+						}
 					} else {
 						paramsString.push('${compileExpressionImpl(param, false)}');
 					}
@@ -419,6 +499,9 @@ class Compiler extends DirectToStringCompiler {
 					case TField(_, FStatic(c, cf)):
 						if (c.toString() == "swift.Syntax" && cf.toString() == 'code') {
 							return printCode(el[0]);
+						}
+						if (c.toString() == "swift.Syntax" && cf.toString() == 'unwrap') {
+							return '${compileExpressionImpl(el[0], false)}!';
 						}
 						// We need to call the function generation so that it gets marked with automatic metas (see explanations on throws in the README)
 						funcDetailsStack.add(new FuncDetails([c.toString(), cf.toString()].join('.')));

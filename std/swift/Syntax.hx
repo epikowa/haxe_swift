@@ -9,4 +9,5 @@ package swift;
 **/
 extern class Syntax {
 	public static function code(code: String): Void;
+	public static function unwrap<T>(value: T): T;
 }
