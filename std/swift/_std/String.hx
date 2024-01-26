@@ -1,5 +1,8 @@
 package;
 
+import swift.HxOverrides;
+import swift.Character;
+
 /**
 	Your target needs to provide custom implementations of every Haxe API class.
 	How this is achieved is different for each target, so be sure to research and try different methods!
@@ -18,11 +21,20 @@ package;
 extern class String {
 	var length(default, null):Int;
 
-	function new(string:String):Void;
+	@:overload(function(string:String):Void {})
+	@:overload(function(char:Character):Void {})
+	@:overload(function(char:Substring):Void {})
+	function new(_:Character):Void;
 
-	function toUpperCase():String;
-	function toLowerCase():String;
-	function charAt(index:Int):String;
+	inline function toUpperCase():String {
+		return swift.HxOverrides.toUpperCase(this);
+	}
+	inline function toLowerCase():String {
+		return HxOverrides.toLowerCase(this);
+	}
+	inline function charAt(index:Int):String {
+		return HxOverrides.charAt(this, index);
+	}
 	function charCodeAt(index:Int):Null<Int>;
 	function indexOf(str:String, ?startIndex:Int):Int;
 	function lastIndexOf(str:String, ?startIndex:Int):Int;

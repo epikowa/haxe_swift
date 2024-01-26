@@ -41,6 +41,18 @@ class Compiler extends DirectToStringCompiler {
 		return comps.join('_');
 	}
 
+	static function defTypeToSwiftName(defType:DefType):String {
+		var comps = new Array<String>();
+		// if (classType.module != null)
+		// 	comps.push(classType.module);
+		comps = comps.concat(defType.pack);
+		if (comps[0] == 'Null') {
+			trace('polop');
+		}
+		comps.push(defType.name);
+		return comps.join('_');
+	}
+
 	function funcDetailsToSignature(args:Array<{t:Type, opt: Bool, name: String}>, ret:Type) {
 		return '(${args.map(arg -> typeToName(arg.t)).join(', ')}) -> ${typeToName(ret)}';
 	}
@@ -101,7 +113,12 @@ class Compiler extends DirectToStringCompiler {
 						paramsNames.push('${param.name} : Any');
 					case TAbstract(t, params):
 						// TODO: Handle abstracts
-						paramsNames.push('${param.name} : Any');
+						if (isAbstractTypeNullT(t.get())) {
+							paramsNames.push('${param.name} : Optional<${typeToName(params[0])}>');
+						} else {
+							$type(t.get());
+							paramsNames.push('${param.name} : ${typeToName(t.get().type)}');
+						}
 					case TFun(args, ret):
 						paramsNames.push('${param.name} : ${funcDetailsToSignature(args, ret)}');
 						paramsNamesOnly.push(param.name);
@@ -176,9 +193,30 @@ class Compiler extends DirectToStringCompiler {
 		return '${importsString}${classKeyword} ${classTypeToSwiftName(classType)} ${superClass != null ? ': ${superClass}' : ''} {\n${fieldsStrings.join('\n')}\n}';
 	}
 
+	public function isAbstractTypeNullT(abstractType:AbstractType) {
+		return (
+			abstractType.module == 'StdTypes'
+			&& abstractType.pack.length == 0
+			&& abstractType.name == 'Null'
+		);
+	}
+
+	function abstractTypeToName(t:AbstractType, params:Array<Type>) {
+		switch (t.name) {
+			case 'Null':
+				var pS = params.map((p) -> {
+					typeToName(p);
+				}).join(', ');
+				return 'Optional<${pS}>';
+			default:
+				return t.name;
+		}
+	}
+
 	public function typeToName(type:Type):String {
 		switch (type) {
 			case TInst(t, params):
+				$type(t.get());
 				var p = new Array<String>();
 				for (param in params) {
 					p.push(typeToName(param));
@@ -203,6 +241,8 @@ class Compiler extends DirectToStringCompiler {
 				return enumTypeToSwiftName(t.get());
 			case TFun(args, ret):
 				return '(${args.map(arg -> typeToName(arg.t)).join(', ')}) -> ${typeToName(ret)}';
+			case TType(t, params):
+				return defTypeToSwiftName(t.get());
 			default:
 				return 'UNMATCHEDPATTERN ${type.getName()}';
 		}
@@ -316,7 +356,23 @@ class Compiler extends DirectToStringCompiler {
 				init(value:Any) {
 
 				}
-			}';
+			}
+			
+			extension StringProtocol {
+				subscript(offset: Int) -> Character { self[index(startIndex, offsetBy: offset)] }
+				subscript(range: Range<Int>) -> SubSequence {
+					let startIndex = index(self.startIndex, offsetBy: range.lowerBound)
+					return self[startIndex..<index(startIndex, offsetBy: range.count)]
+				}
+				subscript(range: ClosedRange<Int>) -> SubSequence {
+					let startIndex = index(self.startIndex, offsetBy: range.lowerBound)
+					return self[startIndex..<index(startIndex, offsetBy: range.count)]
+				}
+				subscript(range: PartialRangeFrom<Int>) -> SubSequence { self[index(startIndex, offsetBy: range.lowerBound)...] }
+				subscript(range: PartialRangeThrough<Int>) -> SubSequence { self[...index(startIndex, offsetBy: range.upperBound)] }
+				subscript(range: PartialRangeUpTo<Int>) -> SubSequence { self[..<index(startIndex, offsetBy: range.upperBound)] }
+			}
+			';
 			File.saveContent('${Context.definedValue('swift-output')}/_Main.swift', content);
 		}
 		if (expr == null) {
@@ -420,7 +476,7 @@ class Compiler extends DirectToStringCompiler {
 				for (field in fields) {
 					fieldsString.push('"${field.name}": ${compileExpressionImpl(field.expr, false)}');
 				}
-				return '[\n${fieldsString.join(',\n')}\n]';
+				return '(\n${fieldsString.join(',\n')}\n)';
 			case TBinop(op, e1, e2):
 				switch (op) {
 					case OpAssign:
@@ -461,7 +517,10 @@ class Compiler extends DirectToStringCompiler {
 			case TArray(e1, e2):
 				return '${compileExpressionImpl(e1, false)}[${compileExpressionImpl(e2, false)}]';
 			case TVar(v, expr):
-				var exprString = compileExpressionImpl(expr, false);
+				var exprString:Null<String> = null;
+				if (expr != null) {
+					exprString = compileExpressionImpl(expr, false);
+				}
 
 				switch (v.t) {
 					case TFun(args, ret):
@@ -470,19 +529,21 @@ class Compiler extends DirectToStringCompiler {
 				}
 				return 'var ${v.name} : ${switch (v.t) {
 					case TAbstract(t, params):
-						t.get().name;
+						abstractTypeToName(t.get(), params);
 					case TInst(t, params):
-						'${t.get().name}!';
+						'${classTypeToSwiftName(t.get())}!';
 					case TEnum(t, params):
 						'HxEnumConstructor';
 						// enumTypeToSwiftName(t.get());
 					case TFun(args, ret):
 						var argsString = '(${args.map(arg -> typeToName(arg.t)).join(', ')})';
-						'${argsString}->${typeToName(ret)}';
+						'${argsString}->${typeToName(ret)}plpl';
+					case TType(t, params):
+						'${defTypeToSwiftName(t.get())}!';
 					default:
 						trace('Unsupported ${Type.enumConstructor(v.t)}');
 						return 'UNSUPPORTED  ${Type.enumConstructor(v.t)}';
-				}} = ${exprString}';
+				}}${exprString != null ? ' = ${exprString}' : ''}';
 			case TNew(c, params, el):
 				var shouldAddTry = c.get().constructor.get().meta.has(':throws');
 
@@ -595,6 +656,29 @@ class Compiler extends DirectToStringCompiler {
 		}
 		// TODO: implement
 		return '';
+	}
+
+	override function compileTypedefImpl(typedefType:DefType) {
+		switch (typedefType.type) {
+			case TAnonymous(a):
+				switch (a.get().status) {
+					case AClosed:
+						var pS = a.get().fields.map((f) -> {
+							return '${f.name}:${typeToName(f.type)}';
+						});
+						//Swift doesn't allow tuples with only one member (but allows 0 members...)
+						if (pS.length == 1) {
+							pS.push('_:Void');
+						}
+						return 'typealias ${defTypeToSwiftName(typedefType)} = (${pS.join(', ')})';
+					default:
+				}
+				return null;
+				return a.get().status.getName();
+			default:
+				return null;
+		}
+		// return 'typealias ${typedefType.name} = () ${typedefType.type.getName()}';
 	}
 
 	function wrapInBlock(e:TypedExpr, representation:String) {
