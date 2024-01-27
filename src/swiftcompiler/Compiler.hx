@@ -626,11 +626,6 @@ class Compiler extends DirectToStringCompiler {
 					exprString = compileExpressionImpl(expr, false);
 				}
 
-				switch (v.t) {
-					case TFun(args, ret):
-						exprString = '{(${args.map(arg -> '${typeToName(arg.t)}').join(', ')}) in ${exprString}}';
-					default:
-				}
 				var vtToString = (t:haxe.macro.Type) -> {
 					return switch (v.t) {
 						case TAbstract(t, params):
@@ -657,6 +652,23 @@ class Compiler extends DirectToStringCompiler {
 					}
 				};
 				var expectedType = vtToString(v.t);
+
+				switch (v.t) {
+					case TFun(args, ret):
+						exprString = '{(${args.map(arg -> '${typeToName(arg.t)}').join(', ')}) in ${exprString}}';
+					default:
+						switch (expr.expr) {
+							case TBlock(el):
+								var last = el.pop();
+
+								exprString = '{
+									${compileExpressionImpl(expr, false)}
+									return ${compileExpressionImpl(last, false)} as! ${expectedType}
+								}()';
+							default:
+						}
+				}
+				
 				return 'var ${v.name} : ${expectedType}${exprString != null ? ' = ${exprString}' : ''}';
 			case TNew(c, params, el):
 				var shouldAddTry = c.get().constructor.get().meta.has(':throws');
