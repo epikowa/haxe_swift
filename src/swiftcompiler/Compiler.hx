@@ -206,7 +206,24 @@ class Compiler extends DirectToStringCompiler {
 
 
 			funcDetailsStack.add(new FuncDetails([classType.name, func.field.name].join('.')));
-			var funcBody = compileExpressionImpl(func.field.expr(), false);
+			// var funcBody = compileExpressionImpl(func.field.expr(), false);
+
+			var tfuncBody = switch (func.field.expr().expr) {
+				case TFunction(tfunc):
+					tfunc;
+				default:
+					Context.fatalError('Function tfuncbody should be TFunction (got ${func.field.expr().expr.getName()})', func.field.expr().pos);
+					null;
+			}
+			var funcBody = switch (tfuncBody.expr.expr) {
+				case TBlock(el):
+					el.map(v -> {
+						compileExpressionImpl(v, false);
+					}).join('\n');
+				default:
+					Context.fatalError('Function body should be TBlock (got ${tfuncBody.expr.expr.getName()})', func.field.expr().pos);
+					null;
+			}
 
 
 			var initialThrows = throws;
@@ -458,11 +475,38 @@ class Compiler extends DirectToStringCompiler {
 			case TFunction(tfunc):
 				return compileExpressionImpl(tfunc.expr, false);
 			case TBlock(el):
+				if (typeToName(expr.t) == 'Void') {
+					var elReps = new Array<String>();
+					for (expr in el) {
+						elReps.push(compileExpressionImpl(expr, false));
+					}
+					return '\n${elReps.join('\n')}\n';
+				}
+
+				var last = el.pop();
+
 				var elReps = new Array<String>();
 				for (expr in el) {
 					elReps.push(compileExpressionImpl(expr, false));
 				}
-				return '\n${elReps.join('\n')}\n';
+
+				var requireReturn = true;
+				requireReturn = switch (last.expr) {
+					case TThrow(_), TReturn(_):
+						false;
+					default:
+						requireReturn;
+				}
+
+				currentFuncDetails.throws = true;
+
+				return 'try { () throws -> ${requireReturn ? typeToName(expr.t) : 'Void'} in
+					if (false) {
+						throw HxError(value: "")
+					}
+					${elReps.join('\n')}
+					${requireReturn ? 'return ' : ''}${compileExpressionImpl(last, false)}${requireReturn ? ' as! ${typeToName(expr.t)}' : ''}
+				}()';
 			case TCall(e, el):
 				var shouldAddTry = false;
 				var labelsMap = new Map<String, String>();
@@ -551,7 +595,7 @@ class Compiler extends DirectToStringCompiler {
 				return switch (c) {
 					case TInt(i): Std.string(i);
 					case TFloat(s): Std.string(s);
-					case TString(s): '"${s}"';
+					case TString(s): '"${Tools.escapeStringConst(s)}"';
 					case TBool(b): b ? 'true' : 'false';
 					case TNull: 'nil';
 					case TSuper: 'super.init';
@@ -598,24 +642,7 @@ class Compiler extends DirectToStringCompiler {
 				}
 			case TMeta(m, e1):
 				trace('-----------META');
-				switch (m.name) {
-					case ':implicitCast':
-						switch (e1.expr) {
-							case TBlock(el):
-								// var returnExpr = ExprDef.EReturn({pos: e1.pos, expr: macro 'return this1'});
-								var last = el.pop();
-
-								return '{
-									${compileExpressionImpl(e1, false)}
-									return ${compileExpressionImpl(last, false)} as! ${typeToName(e1.t)}
-								}()';
-							default:
-								Context.fatalError('@:implicitCast should always be followed by a TBlock', e1.pos);
-								return '';
-						}
-					default:
-						return '/* @${m.name}(${m.params.length}) */${compileExpressionImpl(e1, false)}';
-				}
+				return '/* @${m.name}(${m.params.length}) */${compileExpressionImpl(e1, false)}';
 			case TReturn(e):
 				return 'return ${compileExpressionImpl(e, false)}';
 			case TArray(e1, e2):
@@ -658,18 +685,20 @@ class Compiler extends DirectToStringCompiler {
 						exprString = '{(${args.map(arg -> '${typeToName(arg.t)}').join(', ')}) in ${exprString}}';
 					default:
 						switch (expr.expr) {
-							case TBlock(el):
-								var last = el.pop();
+							// case TBlock(el):
+							// 	var last = el.pop();
 
-								exprString = '{
-									${compileExpressionImpl(expr, false)}
-									return ${compileExpressionImpl(last, false)} as! ${expectedType}
-								}()';
+							// 	exprString = '{
+							// 		${compileExpressionImpl(expr, false)}
+							// 		return ${compileExpressionImpl(last, false)} as! ${expectedType}
+							// 	}()';
+							case TCast(e, m):
+								exprString = '/* ${e.expr.getName()}*/ ${exprString}';
 							default:
 						}
 				}
 				
-				return 'var ${v.name} : ${expectedType}${exprString != null ? ' = ${exprString}' : ''}';
+				return 'var ${v.name} /* ${expr.expr.getName()} */ : ${expectedType}${exprString != null ? ' = ${exprString}' : ''}';
 			case TNew(c, params, el):
 				var shouldAddTry = c.get().constructor.get().meta.has(':throws');
 
@@ -889,5 +918,14 @@ class FuncDetails {
 			this.name = name;
 		}
 	}
+}
+
+class Tools {
+    public static function escapeStringConst(string:String):String {
+        string = StringTools.replace(string, '\n', '\\n');
+        string = StringTools.replace(string, '"', '\"');
+
+        return string;
+    }
 }
 #end
