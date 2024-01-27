@@ -13,7 +13,7 @@ class HxOverrides {
 
 	public static function charAt(s:String, index:Int):String {
 		//var a:SwiftString = untyped s;
-		var e = stringSlicing(s, index, index+1);
+		var e = stringSlicing(s, index, index);
 		return e;
 		//return new String(stringSlicing(s, index, index+1));
 	}

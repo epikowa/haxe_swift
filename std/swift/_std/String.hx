@@ -1,7 +1,9 @@
 package;
 
+import haxe.lang.Runtime;
 import swift.HxOverrides;
-import swift.Character;
+import swift._native.Character;
+import swift._native.UInt8;
 
 /**
 	Your target needs to provide custom implementations of every Haxe API class.
@@ -35,7 +37,12 @@ extern class String {
 	inline function charAt(index:Int):String {
 		return HxOverrides.charAt(this, index);
 	}
-	function charCodeAt(index:Int):Null<Int>;
+	inline function charCodeAt(index:Int):Null<Int> {
+		var hxChar = this.charAt(index);
+		Runtime.printNative(hxChar);
+		var char = new swift._native.Character(hxChar);
+		return UInt8.toInt(char.asciiValue);
+	}
 	function indexOf(str:String, ?startIndex:Int):Int;
 	function lastIndexOf(str:String, ?startIndex:Int):Int;
 	function split(delimiter:String):Array<String>;
