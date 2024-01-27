@@ -210,7 +210,7 @@ class Compiler extends DirectToStringCompiler {
 
 			var initialThrows = throws;
 			throws = throws || currentFuncDetails.throws;
-			if (throws && !(func.field.meta.has(':throw'))) {
+			if (throws && !(func.field.meta.has(':throws'))) {
 				trace('^^^^^^^', initialThrows, currentFuncDetails.throws);
 				func.field.meta.add(':throws', [], Context.currentPos());
 				trace('ADDING ', func.field.name, currentFuncDetails.name);
@@ -388,6 +388,11 @@ class Compiler extends DirectToStringCompiler {
 						} else if (c.toString() == "Std" && cf.toString() == 'string') {
 							return 'String(describing: ${printCode(el[0])})';
 						}
+					case TField(_, FInstance(c, params, cf)):
+						if (cf.get().meta.has(':throws')) {
+							shouldAddTry = true;
+							trace('≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠ YEAH');
+						}
 					default:
 				}
 				return '${shouldAddTry ? 'try ' : ''}${compileExpressionImpl(e, false)}(${paramsString.join(', ')})';
@@ -461,14 +466,11 @@ class Compiler extends DirectToStringCompiler {
 				var shouldAddTry = false;
 				var labelsMap = new Map<String, String>();
 				switch (e.expr) {
-					case TField(_, FStatic(c, cf)):
+					case TField(_, FStatic(c, cf)), TField(_, FInstance(c, _, cf)):
 						labelsMap = getLabelsFromClassField(cf.get());
 						if (cf.get().meta.has(':throws')) {
 							shouldAddTry = true;
 						}
-						trace('------ static');
-					case TField(_, FInstance(_, _, cf)):
-						labelsMap = getLabelsFromClassField(cf.get());
 					default:
 				}
 				var paramsNames = new Array<String>();
@@ -496,7 +498,7 @@ class Compiler extends DirectToStringCompiler {
 					i++;
 				}
 				switch (e.expr) {
-					case TField(_, FStatic(c, cf)):
+					case TField(_, FStatic(c, cf)), TField(_, FInstance(c, _, cf)):
 						if (c.toString() == "swift.Syntax" && cf.toString() == 'code') {
 							return printCode(el[0]);
 						}
