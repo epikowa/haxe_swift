@@ -671,15 +671,20 @@ class Compiler extends DirectToStringCompiler {
 				addSwiftImports(c.get());
 				var constructorType = c.get().constructor.get().type;
 
+				var labelsMap = getLabelsFromClassField(c.get().constructor.get());
+
 				var paramsStrings = new Array<String>();
 				switch(constructorType) {
 					case TFun(args, ret):
 						var i = 0;
 						for (arg in args) {
 							var name = arg.name;
+							if (name != null && name != '') {
+								name = getLabelFromMap(labelsMap, name);
+							}
 							var value = el[i];
-							var t = name != null && name != '' ? '${name} : ' : '';
-							paramsStrings.push('${t} ${compileExpressionImpl(value, false)}');
+							var t = name != null && name != '' && name != '_' ? '${name} : ' : '';
+							paramsStrings.push('${t}${compileExpressionImpl(value, false)}');
 							i++;
 						}
 					default:
