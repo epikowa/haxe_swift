@@ -1,6 +1,7 @@
 package swiftcompiler;
 
 // Make sure this code only exists at compile-time.
+import haxe.macro.Expr.ExprDef;
 #if (macro || swift_runtime)
 import haxe.ds.GenericStack;
 import haxe.rtti.Meta;
@@ -271,8 +272,8 @@ class Compiler extends DirectToStringCompiler {
 		);
 	}
 
-	function abstractTypeToName(t:AbstractType, params:Array<Type>) {
-		switch (t.name) {
+	function abstractTypeToName(t:AbstractType, params:Array<Type>):String {
+		return switch (t.name) {
 			case 'Null':
 				var pS = params.map((p) -> {
 					typeToName(p);
@@ -593,10 +594,28 @@ class Compiler extends DirectToStringCompiler {
 						}
 					default:
 						trace('Unary operator ${Type.enumConstructor(op)} not yet implemented');
-						return 'UNSUPPORTED' + Type.enumConstructor(op);
+						return 'UNSUPPORTED TUNop' + Type.enumConstructor(op);
 				}
 			case TMeta(m, e1):
-				return '//@${m.name}\n${compileExpressionImpl(e1, false)}';
+				trace('-----------META');
+				switch (m.name) {
+					case ':implicitCast':
+						switch (e1.expr) {
+							case TBlock(el):
+								// var returnExpr = ExprDef.EReturn({pos: e1.pos, expr: macro 'return this1'});
+								var last = el.pop();
+
+								return '{
+									${compileExpressionImpl(e1, false)}
+									return ${compileExpressionImpl(last, false)} as! ${typeToName(e1.t)}
+								}()';
+							default:
+								Context.fatalError('@:implicitCast should always be followed by a TBlock', e1.pos);
+								return '';
+						}
+					default:
+						return '/* @${m.name}(${m.params.length}) */${compileExpressionImpl(e1, false)}';
+				}
 			case TReturn(e):
 				return 'return ${compileExpressionImpl(e, false)}';
 			case TArray(e1, e2):
@@ -612,23 +631,33 @@ class Compiler extends DirectToStringCompiler {
 						exprString = '{(${args.map(arg -> '${typeToName(arg.t)}').join(', ')}) in ${exprString}}';
 					default:
 				}
-				return 'var ${v.name} : ${switch (v.t) {
-					case TAbstract(t, params):
-						abstractTypeToName(t.get(), params);
-					case TInst(t, params):
-						'${classTypeToSwiftName(t.get())}!';
-					case TEnum(t, params):
-						'HxEnumConstructor';
-						// enumTypeToSwiftName(t.get());
-					case TFun(args, ret):
-						var argsString = '(${args.map(arg -> typeToName(arg.t)).join(', ')})';
-						'${argsString}->${typeToName(ret)}plpl';
-					case TType(t, params):
-						'${defTypeToSwiftName(t.get())}!';
-					default:
-						trace('Unsupported ${Type.enumConstructor(v.t)}');
-						return 'UNSUPPORTED  ${Type.enumConstructor(v.t)}';
-				}}${exprString != null ? ' = ${exprString}' : ''}';
+				var vtToString = (t:haxe.macro.Type) -> {
+					return switch (v.t) {
+						case TAbstract(t, params):
+							abstractTypeToName(t.get(), params);
+						case TInst(t, params):
+							'${classTypeToSwiftName(t.get())}!';
+						case TEnum(t, params):
+							'HxEnumConstructor';
+							// enumTypeToSwiftName(t.get());
+						case TFun(args, ret):
+							var argsString = '(${args.map(arg -> typeToName(arg.t)).join(', ')})';
+							'${argsString}->${typeToName(ret)}plpl';
+						case TType(t, params):
+							'${defTypeToSwiftName(t.get())}!';
+						case TDynamic(t):
+							if (t == null) {
+								'Any';
+							} else {
+								t.getName();
+							}
+						default:
+							trace('Unsupported ${Type.enumConstructor(v.t)}');
+							return 'UNSUPPORTED  ${Type.enumConstructor(v.t)}';
+					}
+				};
+				var expectedType = vtToString(v.t);
+				return 'var ${v.name} : ${expectedType}${exprString != null ? ' = ${exprString}' : ''}';
 			case TNew(c, params, el):
 				var shouldAddTry = c.get().constructor.get().meta.has(':throws');
 
@@ -735,6 +764,24 @@ class Compiler extends DirectToStringCompiler {
 			case TThrow(e):
 				currentFuncDetails.throws = true;
 				return 'throw HxError(value: ${compileExpressionImpl(e, false)})';
+			case TCast(e, m):
+				var typeName = if (m == null) {
+					return '${compileExpressionImpl(e, false)}';
+				} else {
+					switch (m) {
+						case TClassDecl(c):
+							classTypeToSwiftName(c.get());
+						case TEnumDecl(e):
+							e.get().name;
+						case TTypeDecl(t):
+							Context.fatalError('TTypeDecl casting is not handled', e.pos);
+							'';
+						case TAbstract(a):
+							Context.fatalError('TAbstract casting is not handled', e.pos);
+							'';
+					}
+				}
+				return '${compileExpressionImpl(e, false)} as! ${typeName}';
 			default:
 				trace('expr not supported: ${Type.enumConstructor(expr?.expr)}');
 				return 'expr not supported: ${Type.enumConstructor(expr?.expr)}';

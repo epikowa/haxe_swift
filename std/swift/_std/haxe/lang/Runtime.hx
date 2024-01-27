@@ -3,7 +3,7 @@ package haxe.lang;
 import swift.Syntax;
 
 class Runtime {
-    public static function getField(object:Any, fieldName:String):Null<Any> {
+    public static function getField(object:Null<Any>, fieldName:String):Null<Any> {
         return new Mirror(Syntax.unwrap(object)).descendant(fieldName);
     }
 
