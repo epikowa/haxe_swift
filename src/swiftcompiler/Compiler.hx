@@ -33,33 +33,12 @@ class Compiler extends DirectToStringCompiler {
 		return funcDetailsStack.first();
 	}
 
-	static function classTypeToSwiftName(classType:ClassType) {
-		var comps = new Array<String>();
-		// if (classType.module != null)
-		// 	comps.push(classType.module);
-		comps = comps.concat(classType.pack);
-		comps.push(classType.name);
-		return comps.join('_');
-	}
-
-	static function defTypeToSwiftName(defType:DefType):String {
-		var comps = new Array<String>();
-		// if (classType.module != null)
-		// 	comps.push(classType.module);
-		comps = comps.concat(defType.pack);
-		if (comps[0] == 'Null') {
-			trace('polop');
-		}
-		comps.push(defType.name);
-		return comps.join('_');
-	}
-
 	function funcDetailsToSignature(args:Array<{t:Type, opt: Bool, name: String}>, ret:Type) {
-		return '(${args.map(arg -> typeToName(arg.t)).join(', ')}) -> ${typeToName(ret)}';
+		return '(${args.map(arg -> Tools.typeToName(arg.t)).join(', ')}) -> ${Tools.typeToName(ret)}';
 	}
 
 	function funcDetailsToSignatureWithNames(args:Array<{t:Type, opt: Bool, name: String}>, ret:Type) {
-		return '(${args.map(arg -> '${arg.name} : ${typeToName(arg.t)}').join(', ')}) -> ${typeToName(ret)}';
+		return '(${args.map(arg -> '${arg.name} : ${Tools.typeToName(arg.t)}').join(', ')}) -> ${Tools.typeToName(ret)}';
 	}
 
 	/**
@@ -141,14 +120,14 @@ class Compiler extends DirectToStringCompiler {
 		var hasSuperConstructor = false;
 		if (classType.superClass != null) {
 			hasSuperConstructor = classType.superClass.t.get().constructor != null;
-			superClass = classTypeToSwiftName(classType.superClass.t.get());
+			superClass = Tools.classTypeToSwiftName(classType.superClass.t.get());
 		}
 
 		var constructorParams = new Array<String>();
 		switch (classType.constructor?.get().type) {
 			case TFun(args, ret):
 				for (arg in args) {
-					constructorParams.push('${arg.name}:${typeToName(arg.t)}');
+					constructorParams.push('${arg.name}:${Tools.typeToName(arg.t)}');
 				}
 			default:
 		}
@@ -180,15 +159,15 @@ class Compiler extends DirectToStringCompiler {
 			for (param in func.args) {
 				switch (param.type) {
 					case TInst(t, params):
-						paramsNames.push('${paramLabelAndName(param.name)} : ${typeToName(param.type)}');
+						paramsNames.push('${paramLabelAndName(param.name)} : ${Tools.typeToName(param.type)}');
 					case TDynamic(t):
 						paramsNames.push('${paramLabelAndName(param.name)} : Any');
 					case TAbstract(t, params):
 						// TODO: Handle abstracts
-						if (isAbstractTypeNullT(t.get())) {
-							paramsNames.push('${paramLabelAndName(param.name)} : Optional<${typeToName(params[0])}>');
+						if (Tools.isAbstractTypeNullT(t.get())) {
+							paramsNames.push('${paramLabelAndName(param.name)} : Optional<${Tools.typeToName(params[0])}>');
 						} else {
-							paramsNames.push('${paramLabelAndName(param.name)} : ${typeToName(t.get().type)}');
+							paramsNames.push('${paramLabelAndName(param.name)} : ${Tools.typeToName(t.get().type)}');
 						}
 					case TFun(args, ret):
 						paramsNames.push('${paramLabelAndName(param.name)} : ${funcDetailsToSignature(args, ret)}');
@@ -200,7 +179,7 @@ class Compiler extends DirectToStringCompiler {
 			var throws = func.field.meta.has(':throws');
 			var rethrows = func.field.meta.has(':rethrows');
 			var pS = func.field.params.map(p -> {
-				typeToName(p.t);
+				Tools.typeToName(p.t);
 			}).join(', ');
 			var hasParams = func.field.params.length > 0;
 
@@ -234,7 +213,7 @@ class Compiler extends DirectToStringCompiler {
 				trace('ADDING ', func.field.name, currentFuncDetails.name);
 			}
 
-			fieldsStrings.push('${func.isStatic ? 'static' :''} func ${func.field.name}${hasParams ? '<${pS}>' : ''}(${paramsNames.join(', ')}) ${throws ? 'throws ' :''}${rethrows ? 'rethrows ' :''}-> ${typeToName(func.ret)} {
+			fieldsStrings.push('${func.isStatic ? 'static' :''} func ${func.field.name}${hasParams ? '<${pS}>' : ''}(${paramsNames.join(', ')}) ${throws ? 'throws ' :''}${rethrows ? 'rethrows ' :''}-> ${Tools.typeToName(func.ret)} {
 				${paramsNamesOnly.map(paramName -> 'var ${paramName} = ${paramName}').join('\n')}
 				${funcBody}
 			}
@@ -278,61 +257,7 @@ class Compiler extends DirectToStringCompiler {
 		if (classType.meta.has(':struct')) {
 			classKeyword = 'struct';
 		}
-		return '${importsString}${classKeyword} ${classTypeToSwiftName(classType)} ${superClass != null ? ': ${superClass}' : ''} {\n${fieldsStrings.join('\n')}\n}';
-	}
-
-	public function isAbstractTypeNullT(abstractType:AbstractType) {
-		return (
-			abstractType.module == 'StdTypes'
-			&& abstractType.pack.length == 0
-			&& abstractType.name == 'Null'
-		);
-	}
-
-	function abstractTypeToName(t:AbstractType, params:Array<Type>):String {
-		return switch (t.name) {
-			case 'Null':
-				var pS = params.map((p) -> {
-					typeToName(p);
-				}).join(', ');
-				return 'Optional<${pS}>';
-			default:
-				return t.name;
-		}
-	}
-
-	public function typeToName(type:Type):String {
-		switch (type) {
-			case TInst(t, params):
-				var p = new Array<String>();
-				for (param in params) {
-					p.push(typeToName(param));
-				}
-				if (p.length > 0) {
-					return classTypeToSwiftName(t.get()) + '<${p.join(', ')}>';
-				} 
-				return classTypeToSwiftName(t.get());
-			case TDynamic(t):
-				return 'Any';
-			case TAbstract(t, params):
-				switch (t.get().name) {
-					case 'Null':
-						var pS = params.map((p) -> {
-							typeToName(p);
-						}).join(', ');
-						return 'Optional<${pS}>';
-					default:
-						return t.get().name;
-				}
-			case TEnum(t, params):
-				return enumTypeToSwiftName(t.get());
-			case TFun(args, ret):
-				return '(${args.map(arg -> typeToName(arg.t)).join(', ')}) -> ${typeToName(ret)}';
-			case TType(t, params):
-				return defTypeToSwiftName(t.get());
-			default:
-				return 'UNMATCHEDPATTERN ${type.getName()}';
-		}
+		return '${importsString}${classKeyword} ${Tools.classTypeToSwiftName(classType)} ${superClass != null ? ': ${superClass}' : ''} {\n${fieldsStrings.join('\n')}\n}';
 	}
 
 	// public function typeToSwifthName(t:Type):String {
@@ -355,7 +280,7 @@ class Compiler extends DirectToStringCompiler {
 		var cases = new Array<String>();
 		var constructIndex = 0;
 		for (construct in constructs) {
-			var paramsWithTypes = construct.args.map((arg) -> '${arg.name}:${typeToName(arg.type)}').join(', ');
+			var paramsWithTypes = construct.args.map((arg) -> '${arg.name}:${Tools.typeToName(arg.type)}').join(', ');
 			var params = construct.args.map((arg) -> '${arg.name}').join(', ');
 
 			if (params.length > 0)
@@ -475,7 +400,7 @@ class Compiler extends DirectToStringCompiler {
 			case TFunction(tfunc):
 				return compileExpressionImpl(tfunc.expr, false);
 			case TBlock(el):
-				if (typeToName(expr.t) == 'Void') {
+				if (Tools.typeToName(expr.t) == 'Void') {
 					var elReps = new Array<String>();
 					for (expr in el) {
 						elReps.push(compileExpressionImpl(expr, false));
@@ -500,12 +425,12 @@ class Compiler extends DirectToStringCompiler {
 
 				currentFuncDetails.throws = true;
 
-				return 'try { () throws -> ${requireReturn ? typeToName(expr.t) : 'Void'} in
+				return 'try { () throws -> ${requireReturn ? Tools.typeToName(expr.t) : 'Void'} in
 					if (false) {
 						throw HxError(value: "")
 					}
 					${elReps.join('\n')}
-					${requireReturn ? 'return ' : ''}${compileExpressionImpl(last, false)}${requireReturn ? ' as! ${typeToName(expr.t)}' : ''}
+					${requireReturn ? 'return ' : ''}${compileExpressionImpl(last, false)}${requireReturn ? ' as! ${Tools.typeToName(expr.t)}' : ''}
 				}()';
 			case TCall(e, el):
 				var shouldAddTry = false;
@@ -582,7 +507,7 @@ class Compiler extends DirectToStringCompiler {
 					case TClassDecl(c):
 						addSwiftImports(c.get());
 						//currentClassUses.push(classTypeToSwiftName(c.get()));
-						return classTypeToSwiftName(c.get());
+						return Tools.classTypeToSwiftName(c.get());
 					case TEnumDecl(e):
 						return e.toString();
 					default:
@@ -608,6 +533,11 @@ class Compiler extends DirectToStringCompiler {
 				}
 				return '(\n${fieldsString.join(',\n')}\n)';
 			case TBinop(op, e1, e2):
+				var unwrapIfNecessary = (t:Type) -> {
+					if (Tools.isTypeNullable(t)) return '!';
+					return '';
+				};
+
 				switch (op) {
 					case OpAssign:
 						switch (e2.t) {
@@ -620,8 +550,13 @@ class Compiler extends DirectToStringCompiler {
 						return '${compileExpressionImpl(e1, false)} = ${compileExpressionImpl(e2, false)}';
 					case OpLt:
 						return '${compileExpressionImpl(e1, false)} < ${compileExpressionImpl(e2, false)}';
+					case OpGt:
+						var isNullType1 = false;
+						return '${compileExpressionImpl(e1, false)}${unwrapIfNecessary(e1.t)} > ${compileExpressionImpl(e2, false)}${unwrapIfNecessary(e2.t)}';
 					case OpAdd:
-						return '${compileExpressionImpl(e1, false)} + ${compileExpressionImpl(e2, false)}';
+						return '${compileExpressionImpl(e1, false)}${unwrapIfNecessary(e1.t)} + ${compileExpressionImpl(e2, false)}${unwrapIfNecessary(e2.t)}';
+					case OpSub:
+						return '${compileExpressionImpl(e1, false)}${unwrapIfNecessary(e1.t)} - ${compileExpressionImpl(e2, false)}${unwrapIfNecessary(e2.t)}';
 					case OpEq:
 						return '${compileExpressionImpl(e1, false)} == ${compileExpressionImpl(e2, false)}';
 					default:
@@ -653,36 +588,27 @@ class Compiler extends DirectToStringCompiler {
 					exprString = compileExpressionImpl(expr, false);
 				}
 
-				var vtToString = (t:haxe.macro.Type) -> {
-					return switch (v.t) {
+				var actualType = null;
+				if (Tools.isTypeSome(v.t)) {
+					actualType = switch (v.t) {
 						case TAbstract(t, params):
-							abstractTypeToName(t.get(), params);
-						case TInst(t, params):
-							'${classTypeToSwiftName(t.get())}!';
-						case TEnum(t, params):
-							'HxEnumConstructor';
-							// enumTypeToSwiftName(t.get());
-						case TFun(args, ret):
-							var argsString = '(${args.map(arg -> typeToName(arg.t)).join(', ')})';
-							'${argsString}->${typeToName(ret)}plpl';
-						case TType(t, params):
-							'${defTypeToSwiftName(t.get())}!';
-						case TDynamic(t):
-							if (t == null) {
-								'Any';
-							} else {
-								t.getName();
-							}
+							trace('+++++++++', params[0]);
+							params[0];
 						default:
-							trace('Unsupported ${Type.enumConstructor(v.t)}');
-							return 'UNSUPPORTED  ${Type.enumConstructor(v.t)}';
+							null;
 					}
-				};
-				var expectedType = vtToString(v.t);
+				}
+				var expectedType = Tools.varTypeToString(v.t);
+
+				if (actualType != null) {
+					trace('::::::::::', actualType);
+					trace(Tools.varTypeToString(actualType));
+					expectedType = 'any ${Tools.varTypeToString(actualType)}';
+				}
 
 				switch (v.t) {
 					case TFun(args, ret):
-						exprString = '{(${args.map(arg -> '${typeToName(arg.t)}').join(', ')}) in ${exprString}}';
+						exprString = '{(${args.map(arg -> '${Tools.typeToName(arg.t)}').join(', ')}) in ${exprString}}';
 					default:
 						switch (expr.expr) {
 							// case TBlock(el):
@@ -698,6 +624,8 @@ class Compiler extends DirectToStringCompiler {
 						}
 				}
 				
+				trace( 'var ${v.name} /* ${expr.expr.getName()} */ : ${expectedType}${exprString != null ? ' = ${exprString}' : ''}');
+
 				return 'var ${v.name} /* ${expr.expr.getName()} */ : ${expectedType}${exprString != null ? ' = ${exprString}' : ''}';
 			case TNew(c, params, el):
 				var shouldAddTry = c.get().constructor.get().meta.has(':throws');
@@ -732,7 +660,7 @@ class Compiler extends DirectToStringCompiler {
 				}
 
 
-				var name = classTypeToSwiftName(c.get());
+				var name = Tools.classTypeToSwiftName(c.get());
 				if (c.get().meta.has(':native')) {
 					switch (c.get().meta.extract(':native')[0].params[0].expr) {
 						case EConst(c):
@@ -756,7 +684,11 @@ class Compiler extends DirectToStringCompiler {
 			case TParenthesis(e):
 				return '(${compileExpressionImpl(e, false)})';
 			case TIf(econd, eif, eelse):
-				return 'if (${compileExpressionImpl(econd, false)}) {\n${eif, compileExpressionImpl(eif, false)}} else {\n${eelse, compileExpressionImpl(eelse, false)}';
+				var elseStr: String = '';
+				if (eelse != null) {
+					elseStr = 'else {\n${compileExpressionImpl(eelse, false)}}';
+				}
+				return 'if (${compileExpressionImpl(econd, false)}) {\n${compileExpressionImpl(eif, false)}\n} ${elseStr}';
 			case TEnumIndex(e1):
 				return '${compileExpressionImpl(e1, false)}._hx_index';
 			case TSwitch(e, cases, edef):
@@ -799,7 +731,7 @@ class Compiler extends DirectToStringCompiler {
 							var param = t.get().constructs.get(ef.name);
 							switch (param.type) {
 								case TFun(args, ret):
-									'as! ${typeToName(args[index].t)}';
+									'as! ${Tools.typeToName(args[index].t)}';
 								default: 'We should not reach that';
 							}
 						}
@@ -816,7 +748,7 @@ class Compiler extends DirectToStringCompiler {
 				} else {
 					switch (m) {
 						case TClassDecl(c):
-							classTypeToSwiftName(c.get());
+							Tools.classTypeToSwiftName(c.get());
 						case TEnumDecl(e):
 							e.get().name;
 						case TTypeDecl(t):
@@ -842,13 +774,13 @@ class Compiler extends DirectToStringCompiler {
 				switch (a.get().status) {
 					case AClosed:
 						var pS = a.get().fields.map((f) -> {
-							return '${f.name}:${typeToName(f.type)}';
+							return '${f.name}:${Tools.typeToName(f.type)}';
 						});
 						//Swift doesn't allow tuples with only one member (but allows 0 members...)
 						if (pS.length == 1) {
 							pS.push('_:Void');
 						}
-						return 'typealias ${defTypeToSwiftName(typedefType)} = (${pS.join(', ')})';
+						return 'typealias ${Tools.defTypeToSwiftName(typedefType)} = (${pS.join(', ')})';
 					default:
 				}
 				return null;
@@ -865,14 +797,6 @@ class Compiler extends DirectToStringCompiler {
 		}
 
 		return representation;
-	}
-
-	function enumTypeToSwiftName(enumType:EnumType):String {
-		trace('Module: ${enumType.module}, ${enumType.pack}, ${enumType.name}');
-		var comps = new Array<String>();
-		comps = comps.concat(enumType.pack);
-		comps.push(enumType.name);
-		return comps.join('_');
 	}
 
 	function addSwiftImports(c:ClassType) {
@@ -927,5 +851,141 @@ class Tools {
 
         return string;
     }
+
+	public static function isTypeNullable(t:Type):Bool {
+		switch (t) {
+			case TAbstract(t, params):
+				return isAbstractTypeNullT(t.get());
+			default:
+				return false;
+		}
+	};
+
+	public static function isAbstractTypeNullT(abstractType:AbstractType) {
+		return (
+			abstractType.module == 'StdTypes'
+			&& abstractType.pack.length == 0
+			&& abstractType.name == 'Null'
+		);
+	}
+
+	public static function isTypeSome(t:Type):Bool {
+		switch (t) {
+			case TAbstract(t, params):
+				return isAbstractTypeSome(t.get());
+			default:
+				return false;
+		}
+	}
+
+	public static function isAbstractTypeSome(abstractType:AbstractType) {
+		return (
+			abstractType.module == 'swift.Some'
+			&& abstractType.pack[0] == 'swift'
+			&& abstractType.pack.length == 1
+			&& abstractType.name == 'Some'
+		);
+	}
+
+	public static function varTypeToString(t:haxe.macro.Type) {
+		return switch (t) {
+			case TAbstract(t, params):
+				abstractTypeToName(t.get(), params);
+			case TInst(t, params):
+				'${classTypeToSwiftName(t.get())}!';
+			case TEnum(t, params):
+				'HxEnumConstructor';
+				// enumTypeToSwiftName(t.get());
+			case TFun(args, ret):
+				var argsString = '(${args.map(arg -> typeToName(arg.t)).join(', ')})';
+				'${argsString}->${typeToName(ret)}';
+			case TType(t, params):
+				'${defTypeToSwiftName(t.get())}!';
+			case TDynamic(t):
+				if (t == null) {
+					'Any';
+				} else {
+					t.getName();
+				}
+			default:
+				trace('Unsupported ${Type.enumConstructor(t)}');
+				return 'UNSUPPORTED  ${Type.enumConstructor(t)}';
+		}
+	}
+
+	public static function abstractTypeToName(t:AbstractType, params:Array<Type>):String {
+		return switch (t.name) {
+			case 'Null':
+				var pS = params.map((p) -> {
+					typeToName(p);
+				}).join(', ');
+				return 'Optional<${pS}>';
+			default:
+				return t.name;
+		}
+	}
+
+	public static function classTypeToSwiftName(classType:ClassType) {
+		var comps = new Array<String>();
+		// if (classType.module != null)
+		// 	comps.push(classType.module);
+		comps = comps.concat(classType.pack);
+		comps.push(classType.name);
+		return comps.join('_');
+	}
+
+	public static function typeToName(type:Type):String {
+		switch (type) {
+			case TInst(t, params):
+				var p = new Array<String>();
+				for (param in params) {
+					p.push(typeToName(param));
+				}
+				if (p.length > 0) {
+					return classTypeToSwiftName(t.get()) + '<${p.join(', ')}>';
+				} 
+				return classTypeToSwiftName(t.get());
+			case TDynamic(t):
+				return 'Any';
+			case TAbstract(t, params):
+				switch (t.get().name) {
+					case 'Null':
+						var pS = params.map((p) -> {
+							typeToName(p);
+						}).join(', ');
+						return 'Optional<${pS}>';
+					default:
+						return t.get().name;
+				}
+			case TEnum(t, params):
+				return enumTypeToSwiftName(t.get());
+			case TFun(args, ret):
+				return '(${args.map(arg -> typeToName(arg.t)).join(', ')}) -> ${typeToName(ret)}';
+			case TType(t, params):
+				return defTypeToSwiftName(t.get());
+			default:
+				return 'UNMATCHEDPATTERN ${type.getName()}';
+		}
+	}
+
+	public static function defTypeToSwiftName(defType:DefType):String {
+		var comps = new Array<String>();
+		// if (classType.module != null)
+		// 	comps.push(classType.module);
+		comps = comps.concat(defType.pack);
+		if (comps[0] == 'Null') {
+			trace('polop');
+		}
+		comps.push(defType.name);
+		return comps.join('_');
+	}
+
+	public static function enumTypeToSwiftName(enumType:EnumType):String {
+		trace('Module: ${enumType.module}, ${enumType.pack}, ${enumType.name}');
+		var comps = new Array<String>();
+		comps = comps.concat(enumType.pack);
+		comps.push(enumType.name);
+		return comps.join('_');
+	}
 }
 #end
