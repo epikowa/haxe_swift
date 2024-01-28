@@ -79,3 +79,23 @@ which will then generate the following calls:
 ```swift
 testFunction("First string", secondParam: "Second string", param3: "Third String")
 ```
+
+## Casting
+> [!WARNING]
+> The `cast` keyword is partially implemented, however, at the moment only safe casting is supported (`cast` keyword used with a type).  
+> Casting to `TTypeDecl` or `TAbstract` is not currently supported.
+
+## Swift.Some  
+Use the abstract `swift.Some<T>` for your `T` type to be annoted with `some `:
+
+```haxe
+function test() {
+  var myVar:swift.Some<String> = "foo";
+}
+```
+
+will become
+
+```swift
+var e : some String! = ""
+```

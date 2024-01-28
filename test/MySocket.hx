@@ -17,6 +17,7 @@ extern class NSObject {
 
 extern interface URLSessionDelegate {}
 
+@:swiftImport('Foundation')
 extern class URLSessionWebSocketTask {
 
 }

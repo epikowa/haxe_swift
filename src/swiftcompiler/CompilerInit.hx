@@ -23,7 +23,8 @@ class CompilerInit {
 			reservedVarNames: reservedNames(),
 			targetCodeInjectionName: "__swift__",
 			smartDCE: true,
-			trackUsedTypes: true
+			trackUsedTypes: true,
+			preventRepeatVars: true
 		});
 	}
 

@@ -603,7 +603,7 @@ class Compiler extends DirectToStringCompiler {
 				if (actualType != null) {
 					trace('::::::::::', actualType);
 					trace(Tools.varTypeToString(actualType));
-					expectedType = 'any ${Tools.varTypeToString(actualType)}';
+					expectedType = 'some ${Tools.varTypeToString(actualType)}';
 				}
 
 				switch (v.t) {

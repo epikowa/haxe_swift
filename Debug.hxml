@@ -13,7 +13,7 @@
 -D swift-output=out
 
 # Main function
--main Code
+-main IfTest
 -D swift
 -D swift
 -D reflaxe_runtime
@@ -25,4 +25,7 @@
 -cp std/swift/_std
 --macro swiftcompiler.CompilerInit.Start()
 -D swift-output=Sources/MyLibrary
+-D doc-gen
+-D retain-untyped-meta
 swiftcompiler
+--xml docs/types.xml

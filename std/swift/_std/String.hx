@@ -21,6 +21,7 @@ import swift._native.UInt8;
 	Python      https://github.com/HaxeFoundation/haxe/blob/development/std/python/_std/String.hx
 **/
 extern class String {
+	@:native('count')
 	var length(default, null):Int;
 
 	@:overload(function(string:String):Void {})
@@ -47,7 +48,21 @@ extern class String {
 	function lastIndexOf(str:String, ?startIndex:Int):Int;
 	function split(delimiter:String):Array<String>;
 	function substr(pos:Int, ?len:Int):String;
-	function substring(startIndex:Int, ?endIndex:Int):String;
+	inline function substring(startIndex:Int, ?endIndex:Int):String {
+		if (startIndex < 0) startIndex = 0;
+		if (endIndex < 0) endIndex = 0;
+		if (startIndex > endIndex) {
+			var tmp = startIndex;
+			startIndex = endIndex;
+			endIndex = tmp;
+		}
+		if (endIndex > this.length) {
+			endIndex = this.length;
+		}
+		if (startIndex > this.length) return '';
+		
+		return HxOverrides.stringSlicing(this, startIndex, endIndex-1);
+	}
 	function toString():String;
 
 	@:pure static function fromCharCode(code:Int):String;

@@ -1,13 +1,9 @@
 version // 1
 0//1
-Code_TestClass.swift
+Std.swift
+HxOverrides.swift
+haxe_Runtime.swift
 haxe_ArrayIterator.swift
 haxe_ArrayKeyValueIterator.swift
-Log.swift
-Std.swift
-Code_IHaxeSwift.swift
-Code_TestStructure.swift
-Code.swift
-MySocket.swift
-Code_TestEnum.swift
-Code_ComplexEnum.swift
+IfTest.swift
+IfTest_IfTestStruct.swift
