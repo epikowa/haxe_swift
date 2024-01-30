@@ -204,7 +204,6 @@ class Compiler extends DirectToStringCompiler {
 					null;
 			}
 
-
 			var initialThrows = throws;
 			throws = throws || currentFuncDetails.throws;
 			if (throws && !(func.field.meta.has(':throws'))) {
@@ -213,7 +212,7 @@ class Compiler extends DirectToStringCompiler {
 				trace('ADDING ', func.field.name, currentFuncDetails.name);
 			}
 
-			fieldsStrings.push('${func.isStatic ? 'static' :''} func ${func.field.name}${hasParams ? '<${pS}>' : ''}(${paramsNames.join(', ')}) ${throws ? 'throws ' :''}${rethrows ? 'rethrows ' :''}-> ${Tools.typeToName(func.ret)} {
+			fieldsStrings.push('${func.isStatic ? 'static' :''} func ${func.field.name}${hasParams ? '<${pS}>' : ''}(${paramsNames.join(', ')}) ${throws ? 'throws ' :''}${rethrows ? 'rethrows ' :''}-> ${Tools.typeToName(func.ret, true)} {
 				${paramsNamesOnly.map(paramName -> 'var ${paramName} = ${paramName}').join('\n')}
 				${funcBody}
 			}
@@ -224,11 +223,33 @@ class Compiler extends DirectToStringCompiler {
 		for (field in classType.fields.get()) {
 			switch (field.kind) {
 				case FVar(read, write):
-					var typeString = if (field.type.getName() == 'TEnum') {
-						'HxEnumConstructor';
-					} else {
-						field.type.getParameters()[0];
-					};
+					var t = field.type;
+					
+					var typeString = Tools.varTypeToString(t);
+					var actualType = null;
+					if (Tools.isTypeSome(t)) {
+						switch (read) {
+							case AccCall:
+							default:
+								Context.fatalError('Members defined with swift.Some must have accessor using get or dynamic', Context.currentPos());
+						}
+
+						actualType = switch (t) {
+							case TAbstract(t, params):
+								params[0];
+							default:
+								null;
+						}
+					}
+					if (actualType != null) {
+						trace('::::::::::', actualType);
+						trace(Tools.varTypeToString(actualType));
+						var tStr = Tools.varTypeToString(actualType);
+						//We need to remove the ! at the end
+						tStr = tStr.substr(0, tStr.length - 1);
+						typeString = 'some ${tStr}';
+					}
+
 					
 					var defaultString = '';
 					if (field.expr() != null) {
@@ -238,9 +259,15 @@ class Compiler extends DirectToStringCompiler {
 					var getSetString = '';
 					if (currentClass.isInterface) {
 						getSetString = '{get set}';
+					} else {
+						switch ([read, write]) {
+							case [AccNormal, AccNormal]:
+							default:
+								getSetString = '{${PropertyTools.generateGetter(field)} ${PropertyTools.generateSetter(field)}}';
+						}
 					}
 
-					fieldsStrings.push('var ${field.name}:${typeString}${defaultString}! ${getSetString}');
+					fieldsStrings.push('var ${field.name}:${typeString}${defaultString} ${getSetString}');
 					compileExpressionImpl(field.expr(), true);
 				case FMethod(k):
 			}
@@ -257,7 +284,15 @@ class Compiler extends DirectToStringCompiler {
 		if (classType.meta.has(':struct')) {
 			classKeyword = 'struct';
 		}
-		return '${importsString}${classKeyword} ${Tools.classTypeToSwiftName(classType)} ${superClass != null ? ': ${superClass}' : ''} {\n${fieldsStrings.join('\n')}\n}';
+
+		var superClassAndInterfaces:String;
+		if (classType.superClass != null) {
+			superClassAndInterfaces = Lambda.concat([superClass], classType.interfaces.map(int -> Tools.classTypeToSwiftName(int.t.get()))).join(', ');
+		} else {
+			superClassAndInterfaces = classType.interfaces.map(int -> Tools.classTypeToSwiftName(int.t.get())).join(', ');
+		}
+
+		return '${importsString}${classKeyword} ${Tools.classTypeToSwiftName(classType)} ${superClassAndInterfaces != '' ? ': ${superClassAndInterfaces}' : ''} {\n${fieldsStrings.join('\n')}\n}';
 	}
 
 	// public function typeToSwifthName(t:Type):String {
@@ -592,7 +627,6 @@ class Compiler extends DirectToStringCompiler {
 				if (Tools.isTypeSome(v.t)) {
 					actualType = switch (v.t) {
 						case TAbstract(t, params):
-							trace('+++++++++', params[0]);
 							params[0];
 						default:
 							null;
@@ -601,8 +635,6 @@ class Compiler extends DirectToStringCompiler {
 				var expectedType = Tools.varTypeToString(v.t);
 
 				if (actualType != null) {
-					trace('::::::::::', actualType);
-					trace(Tools.varTypeToString(actualType));
 					expectedType = 'some ${Tools.varTypeToString(actualType)}';
 				}
 
@@ -887,6 +919,9 @@ class Tools {
 		);
 	}
 
+	/**
+		Returns the type representation for TVar/FVar
+	**/
 	public static function varTypeToString(t:haxe.macro.Type) {
 		return switch (t) {
 			case TAbstract(t, params):
@@ -926,6 +961,19 @@ class Tools {
 	}
 
 	public static function classTypeToSwiftName(classType:ClassType) {
+		if (classType.meta.has(':native')) {
+			switch (classType.meta.extract(':native')[0].params[0].expr) {
+				case EConst(c):
+					switch (c) {
+						case CString(s, kind):
+							return s;
+						default:
+					}
+				default:
+			}
+		}
+
+
 		var comps = new Array<String>();
 		// if (classType.module != null)
 		// 	comps.push(classType.module);
@@ -934,38 +982,60 @@ class Tools {
 		return comps.join('_');
 	}
 
-	public static function typeToName(type:Type):String {
-		switch (type) {
-			case TInst(t, params):
-				var p = new Array<String>();
-				for (param in params) {
-					p.push(typeToName(param));
-				}
-				if (p.length > 0) {
-					return classTypeToSwiftName(t.get()) + '<${p.join(', ')}>';
-				} 
-				return classTypeToSwiftName(t.get());
-			case TDynamic(t):
-				return 'Any';
-			case TAbstract(t, params):
-				switch (t.get().name) {
-					case 'Null':
-						var pS = params.map((p) -> {
-							typeToName(p);
-						}).join(', ');
-						return 'Optional<${pS}>';
-					default:
-						return t.get().name;
-				}
-			case TEnum(t, params):
-				return enumTypeToSwiftName(t.get());
-			case TFun(args, ret):
-				return '(${args.map(arg -> typeToName(arg.t)).join(', ')}) -> ${typeToName(ret)}';
-			case TType(t, params):
-				return defTypeToSwiftName(t.get());
-			default:
-				return 'UNMATCHEDPATTERN ${type.getName()}';
+	public static function typeToName(type:Type, printSome: Bool = false):String {
+		var prefix = '';
+		if (printSome && isTypeSome(type)) {
+			prefix = 'some ';
+
+			type = extractActualSomeType(type);
 		}
+
+		var getTypeString = (type) -> {
+			switch (type) {
+				case TInst(t, params):
+					var p = new Array<String>();
+					for (param in params) {
+						p.push(typeToName(param));
+					}
+					if (p.length > 0) {
+						return classTypeToSwiftName(t.get()) + '<${p.join(', ')}>';
+					} 
+					return classTypeToSwiftName(t.get());
+				case TDynamic(t):
+					return 'Any';
+				case TAbstract(t, params):
+					switch (t.get().name) {
+						case 'Null':
+							var pS = params.map((p) -> {
+								typeToName(p);
+							}).join(', ');
+							return 'Optional<${pS}>';
+						default:
+							return t.get().name;
+					}
+				case TEnum(t, params):
+					return enumTypeToSwiftName(t.get());
+				case TFun(args, ret):
+					return '(${args.map(arg -> typeToName(arg.t)).join(', ')}) -> ${typeToName(ret)}';
+				case TType(t, params):
+					return defTypeToSwiftName(t.get());
+				default:
+					return 'UNMATCHEDPATTERN ${type.getName()}';
+			}
+		}
+
+		return '${prefix}${getTypeString(type)}';
+	}
+
+	public static function extractActualSomeType(someType:Type) {
+		switch (someType) {
+			case TAbstract(t, params):
+				return params[0];
+			default:
+				return null;
+		}
+
+		return null;
 	}
 
 	public static function defTypeToSwiftName(defType:DefType):String {
@@ -986,6 +1056,59 @@ class Tools {
 		comps = comps.concat(enumType.pack);
 		comps.push(enumType.name);
 		return comps.join('_');
+	}
+}
+
+class PropertyTools {
+	public static function generateGetter(cf:ClassField) {
+		switch (cf.kind) {
+			case FVar(read, write):
+				switch (read) {
+					case AccNormal:
+						Context.fatalError('Getter default is not yet supported', Context.currentPos());
+					case AccNo:
+						return '';
+					case AccCall, AccCtor:
+						return 'get { return get_${cf.name}() }';
+					case AccInline:
+						Context.fatalError('Getter inline is not yet supported', Context.currentPos());
+					case AccNever:
+						Context.fatalError('Getter never is not yet supported', Context.currentPos());
+					case AccRequire(r, msg):
+						Context.fatalError('Getter require is not yet supported', Context.currentPos());
+					case AccResolve:
+						Context.fatalError('Getter resolve is not yet supported', Context.currentPos());
+				}
+			default:
+		}
+
+		return '';
+	}
+
+	public static function generateSetter(cf:ClassField) {
+		switch (cf.kind) {
+			case FVar(read, write):
+				switch (write) {
+					case AccNormal:
+						Context.fatalError('Setter default is not yet supported', cf.pos);
+					case AccNo:
+						return '';
+					case AccCall, AccCtor:
+						return 'set { set_${cf.name} }';
+					case AccInline:
+						Context.fatalError('Setter inline is not yet supported', cf.pos);
+					case AccNever:
+						return '';
+						Context.fatalError('Setter never is not yet supported', cf.pos);
+					case AccRequire(r, msg):
+						Context.fatalError('Setter require is not yet supported', cf.pos);
+					case AccResolve:
+						Context.fatalError('Setter resolve is not yet supported', cf.pos);
+				}
+			default:
+		}
+
+		return '';
 	}
 }
 #end
