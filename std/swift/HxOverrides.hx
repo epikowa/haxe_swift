@@ -19,7 +19,8 @@ class HxOverrides {
 	}
 
 	public static function stringSlicing(s:String, rangeStart:Int, rangeEnd:Int):String {
-		var sub:Substring = untyped Syntax.code('${s}[${rangeStart}...${rangeEnd}]');
+		var sub:Substring = untyped __swift__('s! [rangeStart! ... rangeEnd!]');
+		//var sub:Substring = untyped Syntax.code('${s}![${rangeStart}!...${rangeEnd}!]');
 
 		return new String(sub);
 	}

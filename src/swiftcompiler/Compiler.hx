@@ -150,6 +150,7 @@ class Compiler extends DirectToStringCompiler {
 			var labels = getLabelsFromMeta(func.field.meta);
 			var paramsNames = new Array<String>();
 			var paramsNamesOnly = new Array<String>();
+			var paramsTypesOnly = new Array<String>();
 
 			var paramLabelAndName = (paramName) -> {
 				var label = getLabelFromMap(labels, paramName);
@@ -160,19 +161,28 @@ class Compiler extends DirectToStringCompiler {
 			for (param in func.args) {
 				switch (param.type) {
 					case TInst(t, params):
+						paramsNamesOnly.push(param.name);
+						paramsTypesOnly.push(Tools.typeToName(param.type));
 						paramsNames.push('${paramLabelAndName(param.name)} : ${Tools.typeToName(param.type)}');
 					case TDynamic(t):
+						paramsNamesOnly.push(param.name);
+						paramsTypesOnly.push('Any');
 						paramsNames.push('${paramLabelAndName(param.name)} : Any');
 					case TAbstract(t, params):
 						// TODO: Handle abstracts
 						if (Tools.isAbstractTypeNullT(t.get())) {
+							paramsNamesOnly.push(param.name);
+							paramsTypesOnly.push(Tools.typeToName(params[0]));
 							paramsNames.push('${paramLabelAndName(param.name)} : Optional<${Tools.typeToName(params[0])}>');
 						} else {
+							paramsNamesOnly.push(param.name);
+							paramsTypesOnly.push(Tools.typeToName(t.get().type));
 							paramsNames.push('${paramLabelAndName(param.name)} : ${Tools.typeToName(t.get().type)}');
 						}
 					case TFun(args, ret):
 						paramsNames.push('${paramLabelAndName(param.name)} : ${funcDetailsToSignature(args, ret)}');
 						paramsNamesOnly.push(param.name);
+						paramsTypesOnly.push(funcDetailsToSignature(args, ret));
 					default:
 						throw 'Parameters of type ${param.type.getName()} are not supported';
 				}
@@ -212,8 +222,19 @@ class Compiler extends DirectToStringCompiler {
 				trace('ADDING ', func.field.name, currentFuncDetails.name);
 			}
 
+			trace('((((((((())))))))) ${paramsNamesOnly}');
+			trace('{{{{{{{{{}}}}}}}}} ${paramsNames}');
+
+			var reassignedVars = new Array<String>();
+
+			var i = 0;
+			for (paramName in paramsNamesOnly) {
+				reassignedVars.push('var ${paramName} : Optional<${paramsTypesOnly[i]}> = ${paramName}');
+				i += 1;
+			}
+
 			fieldsStrings.push('${func.isStatic ? 'static ' :''}func ${func.field.name}${hasParams ? '<${pS}>' : ''}(${paramsNames.join(', ')}) ${throws ? 'throws ' :''}${rethrows ? 'rethrows ' :''}-> ${Tools.typeToName(func.ret, true)} {
-				${paramsNamesOnly.map(paramName -> 'var ${paramName} = ${paramName}').join('\n')}
+				${reassignedVars.join('\n')}
 				${funcBody}
 			}
 			');
@@ -383,17 +404,7 @@ class Compiler extends DirectToStringCompiler {
 
 	var mainGenerated = false;
 
-	/**
-		This is the final required function.
-		It compiles the expressions generated from Haxe.
-		
-		PLEASE NOTE: to recusively compile sub-expressions:
-			BaseCompiler.compileExpression(expr: TypedExpr): Null<String>
-			BaseCompiler.compileExpressionOrError(expr: TypedExpr): String
-		
-		https://api.haxe.org/haxe/macro/TypedExpr.html
-	**/
-	public function compileExpressionImpl(expr: TypedExpr, topLevel: Bool): Null<String> {
+	public function compileExpressionImplExplicit(expr: TypedExpr, topLevel: Bool, isAssignmentTarget:Bool = false): Null<String> {
 		if (!mainGenerated) {
 			mainGenerated = true;
 			var mainExpr = Context.getMainExpr();
@@ -402,7 +413,7 @@ class Compiler extends DirectToStringCompiler {
 				FileSystem.createDirectory(Context.definedValue('swift-output'));
 			}
 
-			var content = '@main\nclass _Main {\n\tstatic func main()->Void {\n\t${s}\n\t}\n}\n';
+			var content = '@main\nclass _Main {\n\tstatic func main() throws ->Void {\n\t${s}\n\t}\n}\n';
 			content += '\ntypealias HxEnumConstructor = (_hx_name: String, _hx_index: Int, enum: String, params: Array<Any>)';
 			content += '\nclass HxError:Error {
 				init(value:Any) {
@@ -513,6 +524,17 @@ class Compiler extends DirectToStringCompiler {
 					i++;
 				}
 				switch (e.expr) {
+					case TIdent('__swift__'):
+						var extractedStr = switch (el[0].expr) {
+							case TConst(TString(s)):
+								s;
+							default:
+								null;
+						}
+						if (extractedStr == null) {
+							Context.fatalError('A string is needed here', e.pos);
+						}
+						return extractedStr;
 					case TField(_, FStatic(c, cf)), TField(_, FInstance(c, _, cf)):
 						if (c.toString() == "swift.Syntax" && cf.toString() == 'code') {
 							return printCode(el[0]);
@@ -560,7 +582,7 @@ class Compiler extends DirectToStringCompiler {
 				}
 			case TLocal(v):
 				trace(v.t.getName());
-				return v.name;
+				return '${v.name}${isAssignmentTarget ? '' : '!'}';
 			case TConst(c):
 				return switch (c) {
 					case TInt(i): Std.string(i);
@@ -578,30 +600,46 @@ class Compiler extends DirectToStringCompiler {
 				}
 				return '(\n${fieldsString.join(',\n')}\n)';
 			case TBinop(op, e1, e2):
-				var unwrapIfNecessary = (t:Type) -> {
-					if (Tools.isTypeNullable(t)) return '!';
-					return '';
+				// var unwrapIfNecessary = (t:Type) -> {
+				// 	return '!';
+				// 	if (Tools.isTypeNullable(t)) return '!';
+				// 	return '';
+				// };
+
+				var unwrapExprIfNecessary = (e:TypedExpr) -> {
+					switch (e.expr) {
+						case TConst(c):
+							return '';
+						default:
+							if (Tools.isTypeNullable(e.t))
+								return '';
+							else
+								return '';
+					}
 				};
 
 				switch (op) {
 					case OpAssign:
 						switch (e2.t) {
 							case TFun(args, ret):
-								return '${compileExpressionImpl(e1, false)} = {${funcDetailsToSignatureWithNames(args, ret)} in
+								return '${compileExpressionImplExplicit(e1, false, true)} = {${funcDetailsToSignatureWithNames(args, ret)} in
 									${compileExpressionImpl(e2, false)}
 								}';
 							default:
 						}
-						return '${compileExpressionImpl(e1, false)} = ${compileExpressionImpl(e2, false)}';
+						if (Tools.isTypeNullable(e1.t) || Tools.isTypeNullable(e2.t)) {
+							return '${compileExpressionImpl(e1, false)}${unwrapExprIfNecessary(e1)} = ${compileExpressionImpl(e2, false)}${unwrapExprIfNecessary(e2)}';
+							}
+						return '${compileExpressionImplExplicit(e1, false, true)} = ${compileExpressionImpl(e2, false)}';
 					case OpLt:
-						return '${compileExpressionImpl(e1, false)} < ${compileExpressionImpl(e2, false)}';
+						return '${compileExpressionImpl(e1, false)}${unwrapExprIfNecessary(e1)} < ${compileExpressionImpl(e2, false)}${unwrapExprIfNecessary(e2)}';
 					case OpGt:
 						var isNullType1 = false;
-						return '${compileExpressionImpl(e1, false)}${unwrapIfNecessary(e1.t)} > ${compileExpressionImpl(e2, false)}${unwrapIfNecessary(e2.t)}';
+						return '${compileExpressionImpl(e1, false)}${unwrapExprIfNecessary(e1)} > ${compileExpressionImpl(e2, false)}${unwrapExprIfNecessary(e2)}';
 					case OpAdd:
-						return '${compileExpressionImpl(e1, false)}${unwrapIfNecessary(e1.t)} + ${compileExpressionImpl(e2, false)}${unwrapIfNecessary(e2.t)}';
+						return '${compileExpressionImpl(e1, false)}${unwrapExprIfNecessary(e1)} + ${compileExpressionImpl(e2, false)}${unwrapExprIfNecessary(e2)}';
 					case OpSub:
-						return '${compileExpressionImpl(e1, false)}${unwrapIfNecessary(e1.t)} - ${compileExpressionImpl(e2, false)}${unwrapIfNecessary(e2.t)}';
+						return '${compileExpressionImpl(e1, false)}${unwrapExprIfNecessary(e1)} - ${compileExpressionImpl(e2, false)}${unwrapExprIfNecessary(e2)}';
 					case OpEq:
 						return '${compileExpressionImpl(e1, false)} == ${compileExpressionImpl(e2, false)}';
 					default:
@@ -632,7 +670,8 @@ class Compiler extends DirectToStringCompiler {
 				if (expr != null) {
 					exprString = compileExpressionImpl(expr, false);
 				}
-
+				// var isNullableExpected = expr == null || 
+				trace('!!!!!!! ${v.meta.get().map(m -> m.name)}');
 				var actualType = null;
 				if (Tools.isTypeSome(v.t)) {
 					actualType = switch (v.t) {
@@ -668,7 +707,17 @@ class Compiler extends DirectToStringCompiler {
 				}
 				
 				trace('€€€€€€€€€€€€€€€ ${v.name}');
-				return 'var ${v.name} : ${expectedType}${exprString != null ? ' = ${exprString}' : ''}';
+				var mustBeOptional = exprString == null || switch (expr.expr) {
+					case TConst(TNull):
+						true;
+					default:
+						false;
+				}
+
+				mustBeOptional = true;
+				if (Tools.isTypeNullable(v.t)) mustBeOptional = false;
+
+				return 'var ${v.name} : ${mustBeOptional ? 'Optional<${StringTools.replace(expectedType, '!', '')}>' : expectedType}${exprString != null ? ' = ${exprString}' : ' = nil'}';
 			case TNew(c, params, el):
 				var shouldAddTry = c.get().constructor.get().meta.has(':throws');
 
@@ -808,6 +857,20 @@ class Compiler extends DirectToStringCompiler {
 		}
 		// TODO: implement
 		return '';
+	}
+
+	/**
+		This is the final required function.
+		It compiles the expressions generated from Haxe.
+		
+		PLEASE NOTE: to recusively compile sub-expressions:
+			BaseCompiler.compileExpression(expr: TypedExpr): Null<String>
+			BaseCompiler.compileExpressionOrError(expr: TypedExpr): String
+		
+		https://api.haxe.org/haxe/macro/TypedExpr.html
+	**/
+	public function compileExpressionImpl(expr: TypedExpr, topLevel: Bool): Null<String> {
+		return compileExpressionImplExplicit(expr, topLevel);
 	}
 
 	override function compileTypedefImpl(typedefType:DefType) {

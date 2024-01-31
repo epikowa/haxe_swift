@@ -1,5 +1,6 @@
 package;
 
+import swift.HxOverrides.Substring;
 import haxe.lang.Runtime;
 import swift.HxOverrides;
 import swift._native.Character;
@@ -24,6 +25,7 @@ extern class String {
 	@:native('count')
 	var length(default, null):Int;
 
+	@:overload(function(_:Substring):Void {})
 	@:overload(function(string:String):Void {})
 	@:overload(function(char:Character):Void {})
 	@:overload(function(char:Substring):Void {})

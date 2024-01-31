@@ -24,7 +24,8 @@ class CompilerInit {
 			targetCodeInjectionName: "__swift__",
 			smartDCE: true,
 			trackUsedTypes: true,
-			preventRepeatVars: true
+			preventRepeatVars: true,
+			convertNullCoal: true
 		});
 	}
 
