@@ -1,6 +1,7 @@
 package swiftcompiler;
 
 // Make sure this code only exists at compile-time.
+import haxe.macro.Expr.Binop;
 import haxe.macro.Expr.ExprDef;
 #if (macro || swift_runtime)
 import haxe.ds.GenericStack;
@@ -187,20 +188,19 @@ class Compiler extends DirectToStringCompiler {
 			funcDetailsStack.add(new FuncDetails([classType.name, func.field.name].join('.')));
 			// var funcBody = compileExpressionImpl(func.field.expr(), false);
 
-			var tfuncBody = switch (func.field.expr().expr) {
-				case TFunction(tfunc):
-					tfunc;
-				default:
-					Context.fatalError('Function tfuncbody should be TFunction (got ${func.field.expr().expr.getName()})', func.field.expr().pos);
-					null;
-			}
-			var funcBody = switch (tfuncBody.expr.expr) {
+			$type(func.expr.expr);
+			$type(func.field.expr().expr);
+
+			var tfuncBody = func.expr.expr;
+			var funcBody = switch (tfuncBody) {
 				case TBlock(el):
+					trace('+++++++++++++ ${func.field.name}');
+					trace(el);
 					el.map(v -> {
 						compileExpressionImpl(v, false);
 					}).join('\n');
 				default:
-					Context.fatalError('Function body should be TBlock (got ${tfuncBody.expr.expr.getName()})', func.field.expr().pos);
+					Context.fatalError('Function body should be TBlock (got ${tfuncBody.getName()})', func.field.expr().pos);
 					null;
 			}
 
@@ -212,7 +212,7 @@ class Compiler extends DirectToStringCompiler {
 				trace('ADDING ', func.field.name, currentFuncDetails.name);
 			}
 
-			fieldsStrings.push('${func.isStatic ? 'static' :''} func ${func.field.name}${hasParams ? '<${pS}>' : ''}(${paramsNames.join(', ')}) ${throws ? 'throws ' :''}${rethrows ? 'rethrows ' :''}-> ${Tools.typeToName(func.ret, true)} {
+			fieldsStrings.push('${func.isStatic ? 'static ' :''}func ${func.field.name}${hasParams ? '<${pS}>' : ''}(${paramsNames.join(', ')}) ${throws ? 'throws ' :''}${rethrows ? 'rethrows ' :''}-> ${Tools.typeToName(func.ret, true)} {
 				${paramsNamesOnly.map(paramName -> 'var ${paramName} = ${paramName}').join('\n')}
 				${funcBody}
 			}
@@ -460,12 +460,22 @@ class Compiler extends DirectToStringCompiler {
 
 				currentFuncDetails.throws = true;
 
+				var lastStr = switch ([last.expr, requireReturn]) {
+					case [TBinop(Binop.OpAssign, e1, e2), true]:
+						'${compileExpressionImpl(last, false)}
+						var __swiftTemp__ = ${compileExpressionImpl(e1, false)}
+						return __swiftTemp__
+						';
+					default:
+						'${requireReturn ? 'return ': ''}${compileExpressionImpl(last, false)}';
+				}
+
 				return 'try { () throws -> ${requireReturn ? Tools.typeToName(expr.t) : 'Void'} in
 					if (false) {
 						throw HxError(value: "")
 					}
 					${elReps.join('\n')}
-					${requireReturn ? 'return ' : ''}${compileExpressionImpl(last, false)}${requireReturn ? ' as! ${Tools.typeToName(expr.t)}' : ''}
+					${lastStr}
 				}()';
 			case TCall(e, el):
 				var shouldAddTry = false;
@@ -642,6 +652,7 @@ class Compiler extends DirectToStringCompiler {
 					case TFun(args, ret):
 						exprString = '{(${args.map(arg -> '${Tools.typeToName(arg.t)}').join(', ')}) in ${exprString}}';
 					default:
+						if (expr?.expr != null)
 						switch (expr.expr) {
 							// case TBlock(el):
 							// 	var last = el.pop();
@@ -656,9 +667,8 @@ class Compiler extends DirectToStringCompiler {
 						}
 				}
 				
-				trace( 'var ${v.name} /* ${expr.expr.getName()} */ : ${expectedType}${exprString != null ? ' = ${exprString}' : ''}');
-
-				return 'var ${v.name} /* ${expr.expr.getName()} */ : ${expectedType}${exprString != null ? ' = ${exprString}' : ''}';
+				trace('€€€€€€€€€€€€€€€ ${v.name}');
+				return 'var ${v.name} : ${expectedType}${exprString != null ? ' = ${exprString}' : ''}';
 			case TNew(c, params, el):
 				var shouldAddTry = c.get().constructor.get().meta.has(':throws');
 
