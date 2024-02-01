@@ -422,6 +422,9 @@ class Compiler extends DirectToStringCompiler {
 			}
 			
 			extension StringProtocol {
+				func index<S: StringProtocol>(of string: S, options: String.CompareOptions = []) -> Index? {
+					range(of: string, options: options)?.lowerBound
+				}
 				subscript(offset: Int) -> Character { self[index(startIndex, offsetBy: offset)] }
 				subscript(range: Range<Int>) -> SubSequence {
 					let startIndex = index(self.startIndex, offsetBy: range.lowerBound)
@@ -434,7 +437,16 @@ class Compiler extends DirectToStringCompiler {
 				subscript(range: PartialRangeFrom<Int>) -> SubSequence { self[index(startIndex, offsetBy: range.lowerBound)...] }
 				subscript(range: PartialRangeThrough<Int>) -> SubSequence { self[...index(startIndex, offsetBy: range.upperBound)] }
 				subscript(range: PartialRangeUpTo<Int>) -> SubSequence { self[..<index(startIndex, offsetBy: range.upperBound)] }
+				
+				var length:Optional<Int> {count}
 			}
+
+			postfix operator *!!
+
+			postfix func *!! <T> (x: T) -> T? {
+				return Optional(x)
+			}
+
 			';
 			File.saveContent('${Context.definedValue('swift-output')}/_Main.swift', content);
 		}
@@ -629,7 +641,7 @@ class Compiler extends DirectToStringCompiler {
 							default:
 						}
 						if (Tools.isTypeNullable(e1.t) || Tools.isTypeNullable(e2.t)) {
-							return '${compileExpressionImpl(e1, false)}${unwrapExprIfNecessary(e1)} = ${compileExpressionImpl(e2, false)}${unwrapExprIfNecessary(e2)}';
+							return '${compileExpressionImplExplicit(e1, false, true)} = ${compileExpressionImpl(e2, false)}${unwrapExprIfNecessary(e2)}';
 							}
 						return '${compileExpressionImplExplicit(e1, false, true)} = ${compileExpressionImpl(e2, false)}';
 					case OpLt:
@@ -642,6 +654,9 @@ class Compiler extends DirectToStringCompiler {
 					case OpSub:
 						return '${compileExpressionImpl(e1, false)}${unwrapExprIfNecessary(e1)} - ${compileExpressionImpl(e2, false)}${unwrapExprIfNecessary(e2)}';
 					case OpEq:
+						if (Tools.isTypeNullable(e1.t) || Tools.isTypeNullable(e2.t)) {
+							return '${compileExpressionImplExplicit(e1, false, true)} == ${compileExpressionImplExplicit(e2, false, true)}';
+						}
 						return '${compileExpressionImpl(e1, false)} == ${compileExpressionImpl(e2, false)}';
 					default:
 						trace('operator ${Type.enumConstructor(op)} not implemented yet');
