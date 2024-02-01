@@ -1,5 +1,6 @@
 package;
 
+import swift.Syntax;
 import swift.HxOverrides.Substring;
 import haxe.lang.Runtime;
 import swift.HxOverrides;
@@ -22,7 +23,6 @@ import swift._native.UInt8;
 	Python      https://github.com/HaxeFoundation/haxe/blob/development/std/python/_std/String.hx
 **/
 extern class String {
-	@:native('count')
 	var length(default, null):Int;
 
 	@:overload(function(_:Substring):Void {})
@@ -46,11 +46,20 @@ extern class String {
 		var char = new swift._native.Character(hxChar);
 		return UInt8.toInt(char.asciiValue);
 	}
-	function indexOf(str:String, ?startIndex:Int):Int;
+	inline function indexOf(@:keep str:String, ?startIndex:Int):Int {
+		//var s = this.substr(startIndex);
+		var s = this;
+		var str = str + ""; //force creation of variable so it can be used in __swift__
+		untyped __swift__('var index = s!.index(of: str!)');
+		return untyped __swift__('s!.distance(from: s!.startIndex, to: index!)');
+	}
 	function lastIndexOf(str:String, ?startIndex:Int):Int;
 	function split(delimiter:String):Array<String>;
 	function substr(pos:Int, ?len:Int):String;
 	inline function substring(startIndex:Int, ?endIndex:Int):String {
+		if (endIndex == null) {
+			endIndex = this.length;
+		}
 		if (startIndex < 0) startIndex = 0;
 		if (endIndex < 0) endIndex = 0;
 		if (startIndex > endIndex) {
