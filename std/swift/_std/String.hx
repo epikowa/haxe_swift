@@ -46,10 +46,10 @@ extern class String {
 		var char = new swift._native.Character(hxChar);
 		return UInt8.toInt(char.asciiValue);
 	}
-	inline function indexOf(@:keep str:String, ?startIndex:Int):Int {
+	inline function indexOf(str:String, ?startIndex:Int = 0):Int {
 		//var s = this.substr(startIndex);
 		var s = this;
-		var str = str + ""; //force creation of variable so it can be used in __swift__
+		var str = str.substring(startIndex); //force creation of variable so it can be used in __swift__
 		untyped __swift__('var index = s!.index(of: str!)');
 		return untyped __swift__('s!.distance(from: s!.startIndex, to: index!)');
 	}
@@ -74,7 +74,9 @@ extern class String {
 		
 		return HxOverrides.stringSlicing(this, startIndex, endIndex-1);
 	}
-	function toString():String;
+	inline function toString():String {
+		return new String(this);
+	}
 
 	@:pure static function fromCharCode(code:Int):String;
 }
