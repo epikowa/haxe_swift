@@ -99,3 +99,7 @@ will become
 ```swift
 var e : some String! = ""
 ```
+
+## Calling native code
+In Haxe generated code, everything is typed as Optional and handled as such with unwrapping being automatically handled where needed.  
+However, when calling native code, you might need to manually unwrap values.

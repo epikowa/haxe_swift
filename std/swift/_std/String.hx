@@ -47,13 +47,17 @@ extern class String {
 		return UInt8.toInt(char.asciiValue);
 	}
 	inline function indexOf(str:String, ?startIndex:Int = 0):Int {
-		//var s = this.substr(startIndex);
 		var s = this;
 		var str = str.substring(startIndex); //force creation of variable so it can be used in __swift__
 		untyped __swift__('var index = s!.index(of: str!)');
 		return untyped __swift__('s!.distance(from: s!.startIndex, to: index!)');
 	}
-	function lastIndexOf(str:String, ?startIndex:Int):Int;
+	inline function lastIndexOf(str:String, ?startIndex:Int = 0):Int {
+		var s = this;
+		var str = str.substring(startIndex); //force creation of variable so it can be used in __swift__
+		untyped __swift__('var index = s!.lastIndex(of: str!)');
+		return untyped __swift__('s!.distance(from: s!.startIndex, to: index!)');
+	}
 	function split(delimiter:String):Array<String>;
 	function substr(pos:Int, ?len:Int):String;
 	inline function substring(startIndex:Int, ?endIndex:Int):String {
