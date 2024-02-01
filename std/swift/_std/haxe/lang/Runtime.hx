@@ -4,7 +4,7 @@ import swift.Syntax;
 
 class Runtime {
     public static function getField(object:Null<Any>, fieldName:String):Null<Any> {
-        return new Mirror(object).descendant(fieldName);
+        return new Mirror(object).descendant(Syntax.unwrap(fieldName));
     }
 
     @:swiftLabels(object, "_") public static function printNative(object:Any):Void {

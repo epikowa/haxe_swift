@@ -163,7 +163,7 @@ class Compiler extends DirectToStringCompiler {
 					case TInst(t, params):
 						paramsNamesOnly.push(param.name);
 						paramsTypesOnly.push(Tools.typeToName(param.type));
-						paramsNames.push('${paramLabelAndName(param.name)} : ${Tools.typeToName(param.type)}');
+						paramsNames.push('${paramLabelAndName(param.name)} : Optional<${Tools.typeToName(param.type)}>');
 					case TDynamic(t):
 						paramsNamesOnly.push(param.name);
 						paramsTypesOnly.push('Any');
@@ -177,7 +177,7 @@ class Compiler extends DirectToStringCompiler {
 						} else {
 							paramsNamesOnly.push(param.name);
 							paramsTypesOnly.push(Tools.typeToName(t.get().type));
-							paramsNames.push('${paramLabelAndName(param.name)} : ${Tools.typeToName(t.get().type)}');
+							paramsNames.push('${paramLabelAndName(param.name)} : Optional<${Tools.typeToName(t.get().type)}>');
 						}
 					case TFun(args, ret):
 						paramsNames.push('${paramLabelAndName(param.name)} : ${funcDetailsToSignature(args, ret)}');
@@ -190,7 +190,7 @@ class Compiler extends DirectToStringCompiler {
 			var throws = func.field.meta.has(':throws');
 			var rethrows = func.field.meta.has(':rethrows');
 			var pS = func.field.params.map(p -> {
-				Tools.typeToName(p.t);
+				'Optional<${Tools.typeToName(p.t)}>';
 			}).join(', ');
 			var hasParams = func.field.params.length > 0;
 
@@ -514,12 +514,12 @@ class Compiler extends DirectToStringCompiler {
 					if (paramsNames[i] != null && paramsNames[i] != '') {
 						var label = getLabelFromMap(labelsMap, paramsNames[i]);
 						if (label != '_') {
-							paramsString.push('${label} : ${compileExpressionImpl(param, false)}');
+							paramsString.push('${label} : ${compileExpressionImplExplicit(param, false)}');
 						} else {
-							paramsString.push('${compileExpressionImpl(param, false)}');
+							paramsString.push('${compileExpressionImplExplicit(param, false, true)}');
 						}
 					} else {
-						paramsString.push('${compileExpressionImpl(param, false)}');
+						paramsString.push('${compileExpressionImplExplicit(param, false, true)}');
 					}
 					i++;
 				}
@@ -540,7 +540,7 @@ class Compiler extends DirectToStringCompiler {
 							return printCode(el[0]);
 						}
 						if (c.toString() == "swift.Syntax" && cf.toString() == 'unwrap') {
-							return '${compileExpressionImpl(el[0], false)}!';
+							return '${compileExpressionImplExplicit(el[0], false, true)}!';
 						}
 						// We need to call the function generation so that it gets marked with automatic metas (see explanations on throws in the README)
 						funcDetailsStack.add(new FuncDetails([c.toString(), cf.toString()].join('.')));
@@ -556,13 +556,14 @@ class Compiler extends DirectToStringCompiler {
 						}
 					default:
 				}
-				return '${shouldAddTry ? 'try ' : ''}${compileExpressionImpl(e, false)}(${paramsString.join(', ')})';
+				//TODO: The call to Explicit should check if unwrapping is necessary or not
+				return '${shouldAddTry ? 'try ' : ''}${compileExpressionImplExplicit(e, false, true)}(${paramsString.join(', ')})';
 			case TField(e, fa):
 				switch (fa) {
 					case FInstance(c, params, cf):
-						return '${compileExpressionImpl(e, false)}.${cf.get().name}';
+						return '(${compileExpressionImplExplicit(e, false, false)}.${cf.get().name}${isAssignmentTarget ? '': '!'})';
 					case FStatic(c, cf):
-						return '${compileExpressionImpl(e, false)}.${cf.get().name}';
+						return '${compileExpressionImpl(e, false)}.${cf.get().name}${isAssignmentTarget ? '': '!'}';
 					case FEnum(e, ef):
 						return '${e.toString()}.${ef.name}';
 					default:
