@@ -561,7 +561,7 @@ class Compiler extends DirectToStringCompiler {
 			case TField(e, fa):
 				switch (fa) {
 					case FInstance(c, params, cf):
-						return '(${compileExpressionImplExplicit(e, false, false)}.${cf.get().name}${isAssignmentTarget ? '': '!'})';
+						return '${compileExpressionImplExplicit(e, false, false)}.${cf.get().name}${isAssignmentTarget ? '': '!'}';
 					case FStatic(c, cf):
 						return '${compileExpressionImpl(e, false)}.${cf.get().name}${isAssignmentTarget ? '': '!'}';
 					case FEnum(e, ef):
