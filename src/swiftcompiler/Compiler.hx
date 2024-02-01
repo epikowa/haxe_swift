@@ -641,7 +641,7 @@ class Compiler extends DirectToStringCompiler {
 							default:
 						}
 						if (Tools.isTypeNullable(e1.t) || Tools.isTypeNullable(e2.t)) {
-							return '${compileExpressionImplExplicit(e1, false, true)} = ${compileExpressionImpl(e2, false)}${unwrapExprIfNecessary(e2)}';
+							return '${compileExpressionImplExplicit(e1, false, true)} = ${compileExpressionImpl(e2, false)}';
 							}
 						return '${compileExpressionImplExplicit(e1, false, true)} = ${compileExpressionImpl(e2, false)}';
 					case OpLt:
@@ -684,7 +684,7 @@ class Compiler extends DirectToStringCompiler {
 			case TVar(v, expr):
 				var exprString:Null<String> = null;
 				if (expr != null) {
-					exprString = compileExpressionImpl(expr, false);
+					exprString = compileExpressionImplExplicit(expr, false, true);
 				}
 				// var isNullableExpected = expr == null || 
 				trace('!!!!!!! ${v.meta.get().map(m -> m.name)}');
