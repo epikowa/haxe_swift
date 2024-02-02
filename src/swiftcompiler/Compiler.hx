@@ -248,7 +248,7 @@ class Compiler extends DirectToStringCompiler {
 				case FVar(read, write):
 					var t = field.type;
 					
-					var typeString = Tools.varTypeToString(t);
+					var typeString = Tools.typeToName(t);
 					var actualType = null;
 					if (Tools.isTypeSome(t)) {
 						switch (read) {
@@ -284,13 +284,17 @@ class Compiler extends DirectToStringCompiler {
 						getSetString = '{get set}';
 					} else {
 						switch ([read, write]) {
-							case [AccNormal, AccNormal]:
+							case [AccNormal | AccCtor, AccNormal | AccCtor]:
+								getSetString = '';
+								fieldsStrings.push('var ${field.name}:${typeString}${defaultString} ${getSetString}');
 							default:
+								var backingVar = '__hx__backing__${field.name}';
+								fieldsStrings.push('private var ${backingVar}:${typeString}${defaultString} ${getSetString}');
 								getSetString = '{${PropertyTools.generateGetter(field)} ${PropertyTools.generateSetter(field)}}';
+								fieldsStrings.push('var ${field.name}:${typeString}${defaultString} ${getSetString}');
 						}
 					}
 
-					fieldsStrings.push('var ${field.name}:${typeString}${defaultString} ${getSetString}');
 					compileExpressionImpl(field.expr(), true);
 				case FMethod(k):
 			}
@@ -1279,15 +1283,17 @@ class Tools {
 
 class PropertyTools {
 	public static function generateGetter(cf:ClassField) {
+		var backingVar = '__hx__backing__${cf.name}';
+		
 		switch (cf.kind) {
 			case FVar(read, write):
 				switch (read) {
-					case AccNormal:
-						return '';
+					case AccNormal, AccCtor:
+						return 'get { return ${backingVar} }';
 						// Context.fatalError('Getter default is not yet supported', cf.pos);
 					case AccNo:
 						return '';
-					case AccCall, AccCtor:
+					case AccCall:
 						return 'get { return get_${cf.name}() }';
 					case AccInline:
 						Context.fatalError('Getter inline is not yet supported', Context.currentPos());
@@ -1305,14 +1311,17 @@ class PropertyTools {
 	}
 
 	public static function generateSetter(cf:ClassField) {
+		var backingVar = '__hx__backing__${cf.name}';
+
 		switch (cf.kind) {
 			case FVar(read, write):
 				switch (write) {
-					case AccNormal:
-						Context.fatalError('Setter default is not yet supported', cf.pos);
+					case AccNormal, AccCtor:
+						return 'set (value) { ${backingVar} = value }';
+						//Context.fatalError('Setter default is not yet supported', cf.pos);
 					case AccNo:
 						return '';
-					case AccCall, AccCtor:
+					case AccCall:
 						return 'set { set_${cf.name} }';
 					case AccInline:
 						Context.fatalError('Setter inline is not yet supported', cf.pos);
