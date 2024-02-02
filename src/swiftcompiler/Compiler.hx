@@ -40,7 +40,7 @@ class Compiler extends DirectToStringCompiler {
 		return '(${args.map(arg -> Tools.typeToName(arg.t)).join(', ')}) -> ${Tools.typeToName(ret)}';
 	}
 
-	function funcDetailsToSignatureWithNames(args:Array<{t:Type, opt: Bool, name: String}>, ret:Type) {
+	public function funcDetailsToSignatureWithNames(args:Array<{t:Type, opt: Bool, name: String}>, ret:Type) {
 		return '(${args.map(arg -> '${arg.name} : ${Tools.typeToName(arg.t)}').join(', ')}) -> ${Tools.typeToName(ret)}';
 	}
 
@@ -130,7 +130,7 @@ class Compiler extends DirectToStringCompiler {
 		switch (classType.constructor?.get().type) {
 			case TFun(args, ret):
 				for (arg in args) {
-					constructorParams.push('${arg.name}:${Tools.typeToName(arg.t)}');
+					constructorParams.push('${arg.name}:Optional<${Tools.typeToName(arg.t)}>');
 				}
 			default:
 		}
@@ -285,13 +285,19 @@ class Compiler extends DirectToStringCompiler {
 					} else {
 						switch ([read, write]) {
 							case [AccNormal | AccCtor, AccNormal | AccCtor]:
+
+								var initialValue = 'nil';
+								if (field.expr() != null) {
+									initialValue = compileExpressionImplExplicit(field.expr(), false);
+								}
+
 								getSetString = '';
-								fieldsStrings.push('var ${field.name}:${typeString}${defaultString} ${getSetString}');
+								fieldsStrings.push('var ${field.name}:Optional<${typeString}>${defaultString} ${getSetString} = ${initialValue}');
 							default:
 								var backingVar = '__hx__backing__${field.name}';
-								fieldsStrings.push('private var ${backingVar}:${typeString}${defaultString} ${getSetString}');
+								fieldsStrings.push('private var ${backingVar}:Optional<${typeString}>${defaultString} ${getSetString}');
 								getSetString = '{${PropertyTools.generateGetter(field)} ${PropertyTools.generateSetter(field)}}';
-								fieldsStrings.push('var ${field.name}:${typeString}${defaultString} ${getSetString}');
+								fieldsStrings.push('var ${field.name}:Optional<${typeString}>${defaultString} ${getSetString}');
 						}
 					}
 
@@ -319,7 +325,9 @@ class Compiler extends DirectToStringCompiler {
 			superClassAndInterfaces = classType.interfaces.map(int -> Tools.classTypeToSwiftName(int.t.get())).join(', ');
 		}
 
-		return '${importsString}${classKeyword} ${Tools.classTypeToSwiftName(classType)} ${superClassAndInterfaces != '' ? ': ${superClassAndInterfaces}' : ''} {\n${fieldsStrings.join('\n')}\n}';
+		var paramsString = classType.params.map((p) -> Tools.typeToName(p.t)).join(', ');
+
+		return '${importsString}${classKeyword} ${Tools.classTypeToSwiftName(classType)} ${superClassAndInterfaces != '' ? ': ${superClassAndInterfaces}' : ''}${paramsString != '' ? '<${paramsString}>' : ''} {\n${fieldsStrings.join('\n')}\n}';
 	}
 
 	// public function typeToSwifthName(t:Type):String {
@@ -450,6 +458,10 @@ class Compiler extends DirectToStringCompiler {
 				subscript(range: PartialRangeUpTo<Int>) -> SubSequence { self[..<index(startIndex, offsetBy: range.upperBound)] }
 				
 				var length:Optional<Int> {count}
+			}
+
+			extension Array {
+				var length: Int? { count }
 			}
 			';
 			File.saveContent('${Context.definedValue('swift-output')}/_Main.swift', content);
@@ -672,49 +684,7 @@ class Compiler extends DirectToStringCompiler {
 				// 	return '';
 				// };
 
-				var unwrapExprIfNecessary = (e:TypedExpr) -> {
-					switch (e.expr) {
-						case TConst(c):
-							return '';
-						default:
-							if (Tools.isTypeNullable(e.t))
-								return '';
-							else
-								return '';
-					}
-				};
-
-				switch (op) {
-					case OpAssign:
-						switch (e2.t) {
-							case TFun(args, ret):
-								return '${compileExpressionImplExplicit(e1, false, true)} = {${funcDetailsToSignatureWithNames(args, ret)} in
-									${compileExpressionImpl(e2, false)}
-								}';
-							default:
-						}
-						if (Tools.isTypeNullable(e1.t) || Tools.isTypeNullable(e2.t)) {
-							return '${compileExpressionImplExplicit(e1, false, true)} = ${compileExpressionImpl(e2, false)}';
-							}
-						return '${compileExpressionImplExplicit(e1, false, true)} = ${compileExpressionImpl(e2, false)}';
-					case OpLt:
-						return '${compileExpressionImpl(e1, false)}${unwrapExprIfNecessary(e1)} < ${compileExpressionImpl(e2, false)}${unwrapExprIfNecessary(e2)}';
-					case OpGt:
-						var isNullType1 = false;
-						return '${compileExpressionImpl(e1, false)}${unwrapExprIfNecessary(e1)} > ${compileExpressionImpl(e2, false)}${unwrapExprIfNecessary(e2)}';
-					case OpAdd:
-						return '${compileExpressionImpl(e1, false)}${unwrapExprIfNecessary(e1)} + ${compileExpressionImpl(e2, false)}${unwrapExprIfNecessary(e2)}';
-					case OpSub:
-						return '${compileExpressionImpl(e1, false)}${unwrapExprIfNecessary(e1)} - ${compileExpressionImpl(e2, false)}${unwrapExprIfNecessary(e2)}';
-					case OpEq:
-						if (Tools.isTypeNullable(e1.t) || Tools.isTypeNullable(e2.t)) {
-							return '${compileExpressionImplExplicit(e1, false, true)} == ${compileExpressionImplExplicit(e2, false, true)}';
-						}
-						return '${compileExpressionImpl(e1, false)} == ${compileExpressionImpl(e2, false)}';
-					default:
-						trace('operator ${Type.enumConstructor(op)} not implemented yet');
-						return 'UNSUPPORTED${Type.enumConstructor(op)}';
-				}
+				return OpTools.generateBinop(op, e1, e2, this);
 			case TUnop(op, postFix, e):
 				switch (op) {
 					case OpIncrement:
@@ -937,6 +907,18 @@ class Compiler extends DirectToStringCompiler {
 		}
 		// TODO: implement
 		return '';
+	}
+
+	public function unwrapExprIfNecessary(e:TypedExpr) {
+		switch (e.expr) {
+			case TConst(c):
+				return '';
+			default:
+				if (Tools.isTypeNullable(e.t))
+					return '';
+				else
+					return '';
+		}
 	}
 
 	/**
@@ -1337,6 +1319,44 @@ class PropertyTools {
 		}
 
 		return '';
+	}
+}
+
+class OpTools {
+	public static function generateBinop(op:Binop, e1:TypedExpr, e2:TypedExpr, compiler:swiftcompiler.Compiler):String {
+		switch (op) {
+			case OpAssign:
+				switch (e2.t) {
+					case TFun(args, ret):
+						return '${compiler.compileExpressionImplExplicit(e1, false, true)} = {${compiler.funcDetailsToSignatureWithNames(args, ret)} in
+							${compiler.compileExpressionImpl(e2, false)}
+						}';
+					default:
+				}
+				if (Tools.isTypeNullable(e1.t) || Tools.isTypeNullable(e2.t)) {
+					return '${compiler.compileExpressionImplExplicit(e1, false, true)} = ${compiler.compileExpressionImpl(e2, false)}';
+					}
+				return '${compiler.compileExpressionImplExplicit(e1, false, true)} = ${compiler.compileExpressionImpl(e2, false)}';
+			case OpLt:
+				return '${compiler.compileExpressionImpl(e1, false)}${compiler.unwrapExprIfNecessary(e1)} < ${compiler.compileExpressionImpl(e2, false)}${compiler.unwrapExprIfNecessary(e2)}';
+			case OpGt:
+				var isNullType1 = false;
+				return '${compiler.compileExpressionImpl(e1, false)}${compiler.unwrapExprIfNecessary(e1)} > ${compiler.compileExpressionImpl(e2, false)}${compiler.unwrapExprIfNecessary(e2)}';
+			case OpAdd:
+				return '${compiler.compileExpressionImpl(e1, false)}${compiler.unwrapExprIfNecessary(e1)} + ${compiler.compileExpressionImpl(e2, false)}${compiler.unwrapExprIfNecessary(e2)}';
+			case OpSub:
+				return '${compiler.compileExpressionImpl(e1, false)}${compiler.unwrapExprIfNecessary(e1)} - ${compiler.compileExpressionImpl(e2, false)}${compiler.unwrapExprIfNecessary(e2)}';
+			case OpEq:
+				if (Tools.isTypeNullable(e1.t) || Tools.isTypeNullable(e2.t)) {
+					return '${compiler.compileExpressionImplExplicit(e1, false, true)} == ${compiler.compileExpressionImplExplicit(e2, false, true)}';
+				}
+				return '${compiler.compileExpressionImpl(e1, false)} == ${compiler.compileExpressionImpl(e2, false)}';
+			case OpAssignOp(op):
+				return '${compiler.compileExpressionImpl(e1, false)}${compiler.unwrapExprIfNecessary(e1)} = ${generateBinop(op, e1, e2, compiler)}';
+			default:
+				trace('operator ${Type.enumConstructor(op)} not implemented yet');
+				return 'UNSUPPORTED${Type.enumConstructor(op)}';
+		}
 	}
 }
 #end

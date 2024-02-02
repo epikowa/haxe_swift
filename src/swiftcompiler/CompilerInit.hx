@@ -25,12 +25,13 @@ class CompilerInit {
 			smartDCE: true,
 			trackUsedTypes: true,
 			preventRepeatVars: true,
-			convertNullCoal: true
+			convertNullCoal: true,
+			convertUnopIncrement: true
 		});
 	}
 
 	static function reservedNames() {
-		return [];
+		return ['func'];
 	}
 }
 
