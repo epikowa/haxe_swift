@@ -32,6 +32,8 @@ class Compiler extends DirectToStringCompiler {
 	var currentClass:ClassType;
 	var currentFuncDetails(get, never):FuncDetails;
 	var funcDetailsStack:GenericStack<FuncDetails> = new GenericStack();
+	static var current:Compiler;
+
 	function get_currentFuncDetails():FuncDetails {
 		return funcDetailsStack.first();
 	}
@@ -41,7 +43,7 @@ class Compiler extends DirectToStringCompiler {
 	}
 
 	public function funcDetailsToSignatureWithNames(args:Array<{t:Type, opt: Bool, name: String}>, ret:Type) {
-		return '(${args.map(arg -> '${arg.name} : ${Tools.typeToName(arg.t)}').join(', ')}) -> ${Tools.typeToName(ret)}';
+		return '(${args.map(arg -> '${compileVarName(arg.name)} : ${Tools.typeToName(arg.t)}').join(', ')}) -> ${Tools.typeToName(ret)}';
 	}
 
 	/**
@@ -130,7 +132,7 @@ class Compiler extends DirectToStringCompiler {
 		switch (classType.constructor?.get().type) {
 			case TFun(args, ret):
 				for (arg in args) {
-					constructorParams.push('${arg.name}:Optional<${Tools.typeToName(arg.t)}>');
+					constructorParams.push('${compileVarName(arg.name)}:Optional<${Tools.typeToName(arg.t)}>');
 				}
 			default:
 		}
@@ -163,27 +165,27 @@ class Compiler extends DirectToStringCompiler {
 			for (param in func.args) {
 				switch (param.type) {
 					case TInst(t, params):
-						paramsNamesOnly.push(param.name);
+						paramsNamesOnly.push(compileVarName(param.name));
 						paramsTypesOnly.push(Tools.typeToName(param.type));
-						paramsNames.push('${paramLabelAndName(param.name)} : Optional<${Tools.typeToName(param.type)}>');
+						paramsNames.push('${paramLabelAndName(compileVarName(param.name))} : Optional<${Tools.typeToName(param.type)}>');
 					case TDynamic(t):
-						paramsNamesOnly.push(param.name);
+						paramsNamesOnly.push(compileVarName(param.name));
 						paramsTypesOnly.push('Any');
-						paramsNames.push('${paramLabelAndName(param.name)} : Any');
+						paramsNames.push('${paramLabelAndName(compileVarName(param.name))} : Any');
 					case TAbstract(t, params):
 						// TODO: Handle abstracts
 						if (Tools.isAbstractTypeNullT(t.get())) {
-							paramsNamesOnly.push(param.name);
+							paramsNamesOnly.push(compileVarName(param.name));
 							paramsTypesOnly.push(Tools.typeToName(params[0]));
-							paramsNames.push('${paramLabelAndName(param.name)} : Optional<${Tools.typeToName(params[0])}>');
+							paramsNames.push('${paramLabelAndName(compileVarName(param.name))} : Optional<${Tools.typeToName(params[0])}>');
 						} else {
-							paramsNamesOnly.push(param.name);
+							paramsNamesOnly.push(compileVarName(param.name));
 							paramsTypesOnly.push(Tools.typeToName(t.get().type));
-							paramsNames.push('${paramLabelAndName(param.name)} : Optional<${Tools.typeToName(t.get().type)}>');
+							paramsNames.push('${paramLabelAndName(compileVarName(param.name))} : Optional<${Tools.typeToName(t.get().type)}>');
 						}
 					case TFun(args, ret):
-						paramsNames.push('${paramLabelAndName(param.name)} : ${funcDetailsToSignature(args, ret)}');
-						paramsNamesOnly.push(param.name);
+						paramsNames.push('${paramLabelAndName(compileVarName(param.name))} : ${funcDetailsToSignature(args, ret)}');
+						paramsNamesOnly.push(compileVarName(param.name));
 						paramsTypesOnly.push(funcDetailsToSignature(args, ret));
 					default:
 						throw 'Parameters of type ${param.type.getName()} are not supported';
@@ -192,12 +194,12 @@ class Compiler extends DirectToStringCompiler {
 			var throws = func.field.meta.has(':throws');
 			var rethrows = func.field.meta.has(':rethrows');
 			var pS = func.field.params.map(p -> {
-				'Optional<${Tools.typeToName(p.t)}>';
+				'${Tools.typeToName(p.t)}';
 			}).join(', ');
 			var hasParams = func.field.params.length > 0;
 
 
-			funcDetailsStack.add(new FuncDetails([classType.name, func.field.name].join('.')));
+			funcDetailsStack.add(new FuncDetails([classType.name, compileVarName(func.field.name)].join('.')));
 			// var funcBody = compileExpressionImpl(func.field.expr(), false);
 
 			$type(func.expr.expr);
@@ -235,7 +237,7 @@ class Compiler extends DirectToStringCompiler {
 				i += 1;
 			}
 
-			fieldsStrings.push('${func.isStatic ? 'static ' :''}func ${func.field.name}${hasParams ? '<${pS}>' : ''}(${paramsNames.join(', ')}) ${throws ? 'throws ' :''}${rethrows ? 'rethrows ' :''}-> ${Tools.typeToName(func.ret, true)} {
+			fieldsStrings.push('${func.isStatic ? 'static ' :''}func ${compileVarName(func.field.name)}${hasParams ? '<${pS}>' : ''}(${paramsNames.join(', ')}) ${throws ? 'throws ' :''}${rethrows ? 'rethrows ' :''}-> ${Tools.typeToName(func.ret, true)} {
 				${reassignedVars.join('\n')}
 				${funcBody}
 			}
@@ -292,12 +294,12 @@ class Compiler extends DirectToStringCompiler {
 								}
 
 								getSetString = '';
-								fieldsStrings.push('var ${field.name}:Optional<${typeString}>${defaultString} ${getSetString} = ${initialValue}');
+								fieldsStrings.push('var ${compileVarName(field.name)}:Optional<${typeString}>${defaultString} ${getSetString} = ${initialValue}');
 							default:
-								var backingVar = '__hx__backing__${field.name}';
+								var backingVar = '__hx__backing__${compileVarName(field.name)}';
 								fieldsStrings.push('private var ${backingVar}:Optional<${typeString}>${defaultString} ${getSetString}');
 								getSetString = '{${PropertyTools.generateGetter(field)} ${PropertyTools.generateSetter(field)}}';
-								fieldsStrings.push('var ${field.name}:Optional<${typeString}>${defaultString} ${getSetString}');
+								fieldsStrings.push('var ${compileVarName(field.name)}:Optional<${typeString}>${defaultString} ${getSetString}');
 						}
 					}
 
@@ -396,7 +398,7 @@ class Compiler extends DirectToStringCompiler {
 							shouldAddTry = true;
 							trace('≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠≠ YEAH');
 						}
-						if (c.toString() == "swift.Syntax" && cf.toString() == 'code') {
+						if (c.toString() == "swift.Syntax" && cf.toString() == 'plainCode') {
 							return printCode(el[0]);
 						} else if (c.toString() == "Std" && cf.toString() == 'string') {
 							return 'String(describing: ${printCode(el[0])})';
@@ -534,7 +536,7 @@ class Compiler extends DirectToStringCompiler {
 				switch (e.t) {
 					case TFun(args, ret):
 						for (arg in args) {
-							paramsNames.push(arg.name);
+							paramsNames.push(compileVarName(arg.name));
 						}
 					default:
 				}
@@ -638,9 +640,9 @@ class Compiler extends DirectToStringCompiler {
 			case TField(e, fa):
 				switch (fa) {
 					case FInstance(c, params, cf):
-						return '${compileExpressionImplExplicit(e, false, false)}.${cf.get().name}${isAssignmentTarget ? '': '!'}';
+						return '${compileExpressionImplExplicit(e, false, false)}.${compileVarName(cf.get().name)}${isAssignmentTarget ? '': '!'}';
 					case FStatic(c, cf):
-						return '${compileExpressionImpl(e, false)}.${cf.get().name}${isAssignmentTarget ? '': '!'}';
+						return '${compileExpressionImpl(e, false)}.${compileVarName(cf.get().name)}${isAssignmentTarget ? '': '!'}';
 					case FEnum(e, ef):
 						return '${e.toString()}.${ef.name}';
 					default:
@@ -660,7 +662,7 @@ class Compiler extends DirectToStringCompiler {
 				}
 			case TLocal(v):
 				trace(v.t.getName());
-				return '${v.name}${isAssignmentTarget ? '' : '!'}';
+				return '${compileVarName(v.name)}${isAssignmentTarget ? '' : '!'}';
 			case TConst(c):
 				return switch (c) {
 					case TInt(i): Std.string(i);
@@ -674,7 +676,7 @@ class Compiler extends DirectToStringCompiler {
 			case TObjectDecl(fields):
 				var fieldsString = new Array<String>();
 				for (field in fields) {
-					fieldsString.push('"${field.name}": ${compileExpressionImpl(field.expr, false)}');
+					fieldsString.push('"${compileVarName(field.name)}": ${compileExpressionImpl(field.expr, false)}');
 				}
 				return '(\n${fieldsString.join(',\n')}\n)';
 			case TBinop(op, e1, e2):
@@ -767,7 +769,7 @@ class Compiler extends DirectToStringCompiler {
 				mustBeOptional = true;
 				if (Tools.isTypeNullable(v.t)) mustBeOptional = false;
 
-				return 'var ${v.name} : ${mustBeOptional ? 'Optional<${StringTools.replace(expectedType, '!', '')}>' : expectedType}${exprString != null ? ' = ${exprString}' : ' = nil'}';
+				return 'var ${compileVarName(v.name)} : ${mustBeOptional ? 'Optional<${StringTools.replace(expectedType, '!', '')}>' : expectedType}${exprString != null ? ' = ${exprString}' : ' = nil'}';
 			case TNew(c, params, el):
 				var shouldAddTry = c.get().constructor.get().meta.has(':throws');
 
@@ -788,7 +790,7 @@ class Compiler extends DirectToStringCompiler {
 					case TFun(args, ret):
 						var i = 0;
 						for (arg in args) {
-							var name = arg.name;
+							var name = compileVarName(arg.name);
 							if (name != null && name != '') {
 								name = getLabelFromMap(labelsMap, name);
 							}
@@ -909,6 +911,10 @@ class Compiler extends DirectToStringCompiler {
 		return '';
 	}
 
+	public static function accessCompileVarName(name:String):String {
+		return current.compileVarName(name);
+	}
+
 	public function unwrapExprIfNecessary(e:TypedExpr) {
 		switch (e.expr) {
 			case TConst(c):
@@ -941,7 +947,7 @@ class Compiler extends DirectToStringCompiler {
 				switch (a.get().status) {
 					case AClosed:
 						var pS = a.get().fields.map((f) -> {
-							return '${f.name}:${Tools.typeToName(f.type)}';
+							return '${compileVarName(f.name)}:${Tools.typeToName(f.type)}';
 						});
 						//Swift doesn't allow tuples with only one member (but allows 0 members...)
 						if (pS.length == 1) {
@@ -1015,6 +1021,11 @@ class Compiler extends DirectToStringCompiler {
 			}
 		}
 		return imports;
+	}
+
+	public function new() {
+		super();
+		current = this;
 	}
 }
 
@@ -1201,7 +1212,7 @@ class Tools {
 					return defTypeToSwiftName(t.get()) + paramsAddendum;
 				case TAnonymous(a):
 					var b = a.get().fields.map(field -> {
-						return '${field.name}:${Tools.typeToName(field.type)}';
+						return '${Compiler.accessCompileVarName(field.name)}:${Tools.typeToName(field.type)}';
 					}).join(', ');
 					return '(${b})';
 				case TMono(t):
@@ -1265,7 +1276,7 @@ class Tools {
 
 class PropertyTools {
 	public static function generateGetter(cf:ClassField) {
-		var backingVar = '__hx__backing__${cf.name}';
+		var backingVar = '__hx__backing__${Compiler.accessCompileVarName(cf.name)}';
 		
 		switch (cf.kind) {
 			case FVar(read, write):
@@ -1276,7 +1287,7 @@ class PropertyTools {
 					case AccNo:
 						return '';
 					case AccCall:
-						return 'get { return get_${cf.name}() }';
+						return 'get { return get_${Compiler.accessCompileVarName(cf.name)}() }';
 					case AccInline:
 						Context.fatalError('Getter inline is not yet supported', Context.currentPos());
 					case AccNever:
@@ -1293,7 +1304,7 @@ class PropertyTools {
 	}
 
 	public static function generateSetter(cf:ClassField) {
-		var backingVar = '__hx__backing__${cf.name}';
+		var backingVar = '__hx__backing__${Compiler.accessCompileVarName(cf.name)}';
 
 		switch (cf.kind) {
 			case FVar(read, write):
@@ -1304,7 +1315,7 @@ class PropertyTools {
 					case AccNo:
 						return '';
 					case AccCall:
-						return 'set { set_${cf.name} }';
+						return 'set { set_${Compiler.accessCompileVarName(cf.name)} }';
 					case AccInline:
 						Context.fatalError('Setter inline is not yet supported', cf.pos);
 					case AccNever:
