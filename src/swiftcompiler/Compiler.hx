@@ -1,6 +1,8 @@
 package swiftcompiler;
 
 // Make sure this code only exists at compile-time.
+import haxe.macro.TypeTools;
+import haxe.macro.Expr.TypeParam;
 import haxe.macro.Expr.Binop;
 import haxe.macro.Expr.ExprDef;
 #if (macro || swift_runtime)
@@ -404,6 +406,8 @@ class Compiler extends DirectToStringCompiler {
 
 	var mainGenerated = false;
 
+	var lastComputedCodeParams = [];
+
 	public function compileExpressionImplExplicit(expr: TypedExpr, topLevel: Bool, isAssignmentTarget:Bool = false): Null<String> {
 		if (!mainGenerated) {
 			mainGenerated = true;
@@ -425,6 +429,9 @@ class Compiler extends DirectToStringCompiler {
 				func index<S: StringProtocol>(of string: S, options: String.CompareOptions = []) -> Index? {
 					range(of: string, options: options)?.lowerBound
 				}
+				func lastIndex<S: StringProtocol>(of string: S, options: String.CompareOptions = []) -> Index? {
+					range(of: string, options: options)?.lowerBound
+				}
 				subscript(offset: Int) -> Character { self[index(startIndex, offsetBy: offset)] }
 				subscript(range: Range<Int>) -> SubSequence {
 					let startIndex = index(self.startIndex, offsetBy: range.lowerBound)
@@ -440,13 +447,6 @@ class Compiler extends DirectToStringCompiler {
 				
 				var length:Optional<Int> {count}
 			}
-
-			postfix operator *!!
-
-			postfix func *!! <T> (x: T) -> T? {
-				return Optional(x)
-			}
-
 			';
 			File.saveContent('${Context.definedValue('swift-output')}/_Main.swift', content);
 		}
@@ -457,6 +457,8 @@ class Compiler extends DirectToStringCompiler {
 		switch (expr.expr) {
 			case TFunction(tfunc):
 				return compileExpressionImpl(tfunc.expr, false);
+			case TArrayDecl(el):
+				return '[${el.map(e -> compileExpressionImplExplicit(e, false)).join(', ')}]';
 			case TBlock(el):
 				if (Tools.typeToName(expr.t) == 'Void') {
 					var elReps = new Array<String>();
@@ -474,7 +476,7 @@ class Compiler extends DirectToStringCompiler {
 				}
 
 				var requireReturn = true;
-				requireReturn = switch (last.expr) {
+				requireReturn = switch (last?.expr) {
 					case TThrow(_), TReturn(_):
 						false;
 					default:
@@ -483,10 +485,11 @@ class Compiler extends DirectToStringCompiler {
 
 				currentFuncDetails.throws = true;
 
-				var lastStr = switch ([last.expr, requireReturn]) {
+				var lastStr = switch ([last?.expr, requireReturn]) {
 					case [TBinop(Binop.OpAssign, e1, e2), true]:
+						var expectedType = Tools.typeToName(expr.t);
 						'${compileExpressionImpl(last, false)}
-						var __swiftTemp__ = ${compileExpressionImpl(e1, false)}
+						var __swiftTemp__ : ${expectedType} = (${compileExpressionImpl(e1, false)}) as! ${expectedType}
 						return __swiftTemp__
 						';
 					default:
@@ -548,9 +551,55 @@ class Compiler extends DirectToStringCompiler {
 						}
 						return extractedStr;
 					case TField(_, FStatic(c, cf)), TField(_, FInstance(c, _, cf)):
-						if (c.toString() == "swift.Syntax" && cf.toString() == 'code') {
+						if (c.toString() == "swift.Syntax" && cf.toString() == 'plainCode') {
 							return printCode(el[0]);
 						}
+
+						if (c.toString() == "swift.Syntax" && cf.toString() == 'code') {
+							
+							var initialString = switch(el[0].expr) {
+								case TConst(TString(s)):
+									s;
+								default:
+									"";
+							}
+
+							var args = switch (el[1].expr) {
+								case TMeta(m, e1):
+									trace(e1);
+									trace(m.name);
+									switch ([m.name, e1.expr]) {
+										case [':implicitCast', TBlock(el)]:
+											switch (el[1].expr) {
+												case TBinop(op, e1, e2):
+													switch (e2.expr) {
+														case TArrayDecl(el):
+															trace(el);
+															lastComputedCodeParams = el;
+														default:
+															[];
+													}
+												default:
+													[];
+											}
+										default:
+											[];
+									}
+								default:
+									[];
+							}
+
+							if (args.length == 0) {
+								args = lastComputedCodeParams;
+								lastComputedCodeParams = [];
+							}
+
+							for (i in 0...args.length) {
+								initialString = StringTools.replace(initialString, '{${i}}', compileExpressionImplExplicit(args[i], false));
+							}
+							return initialString;
+						}
+
 						if (c.toString() == "swift.Syntax" && cf.toString() == 'unwrap') {
 							return '${compileExpressionImplExplicit(el[0], false, true)}!';
 						}
@@ -676,6 +725,7 @@ class Compiler extends DirectToStringCompiler {
 				}
 			case TMeta(m, e1):
 				trace('-----------META');
+				// return '/* @${m.name}(${m.params.length}) */';
 				return '/* @${m.name}(${m.params.length}) */${compileExpressionImpl(e1, false)}';
 			case TReturn(e):
 				return 'return ${compileExpressionImpl(e, false)}';
@@ -697,10 +747,20 @@ class Compiler extends DirectToStringCompiler {
 							null;
 					}
 				}
-				var expectedType = Tools.varTypeToString(v.t);
+				// var expectedType = Tools.varTypeToString(v.t);
+				var expectedType = Tools.typeToName(v.t);
+
+				if (expectedType == 'haxe__Rest_NativeRest') {
+					Tools.typeToName(v.t);
+					trace('HAHA');
+
+					// switch (v.t) {
+					// 	case TType(t, params):
+					// }
+				}
 
 				if (actualType != null) {
-					expectedType = 'some ${Tools.varTypeToString(actualType)}';
+					expectedType = 'some ${Tools.typeToName(actualType)}';
 				}
 
 				switch (v.t) {
@@ -906,8 +966,26 @@ class Compiler extends DirectToStringCompiler {
 				}
 				return null;
 				return a.get().status.getName();
+			case TInst(t, params):
+				var pS = new Array<String>();
+				for (param in params) {
+					pS.push(Tools.typeToName(param));
+				}
+
+				var tP = Tools.typeParamsSignature(typedefType.params);
+
+				var typedefSignature = Tools.defTypeToSwiftName(typedefType);
+				if (tP?.length > 0) {
+					typedefSignature = typedefSignature + '<${tP}>';
+				}
+
+				if (pS.length > 0) {
+					return 'typealias ${typedefSignature} = ${Tools.classTypeToSwiftName(t.get())}<${pS.join(', ')}>';
+				} else {
+					return 'typealias ${typedefSignature} = ${Tools.classTypeToSwiftName(t.get())}';
+				}
 			default:
-				return null;
+				return typedefType.type.getName();
 		}
 		// return 'typealias ${typedefType.name} = () ${typedefType.type.getName()}';
 	}
@@ -1024,13 +1102,22 @@ class Tools {
 				var argsString = '(${args.map(arg -> typeToName(arg.t)).join(', ')})';
 				'${argsString}->${typeToName(ret)}';
 			case TType(t, params):
-				'${defTypeToSwiftName(t.get())}!';
+				var pS = params.map((p) -> {
+					typeToName(p);
+				}).join(', ');
+				var paramsAddendum = '';
+				// if (pS.length > 0) {
+				// 	paramsAddendum = '<${pS}>';
+				// }
+				defTypeToSwiftName(t.get()) + paramsAddendum;
 			case TDynamic(t):
 				if (t == null) {
 					'Any';
 				} else {
 					t.getName();
 				}
+			case TMono(t):
+				'Any';
 			default:
 				trace('Unsupported ${Type.enumConstructor(t)}');
 				return 'UNSUPPORTED  ${Type.enumConstructor(t)}';
@@ -1045,7 +1132,7 @@ class Tools {
 				}).join(', ');
 				return 'Optional<${pS}>';
 			default:
-				return t.name;
+					return '' +t.name + '';
 		}
 	}
 
@@ -1100,14 +1187,46 @@ class Tools {
 							}).join(', ');
 							return 'Optional<${pS}>';
 						default:
-							return t.get().name;
+							var followedType = TypeTools.followWithAbstracts(type);
+							trace(type);
+							// $type(type);
+							// var mainName = Tools.abstractTypeToName(t.get(), params);
+							var mainName = switch (followedType) {
+								case TAbstract(t, params):
+									t.get().name;
+								default:
+									Tools.typeToName(followedType);
+							};
+							
+							return mainName;
 					}
 				case TEnum(t, params):
 					return enumTypeToSwiftName(t.get());
 				case TFun(args, ret):
 					return '(${args.map(arg -> typeToName(arg.t)).join(', ')}) -> ${typeToName(ret)}';
 				case TType(t, params):
-					return defTypeToSwiftName(t.get());
+					var pS = params.map((p) -> {
+						typeToName(p);
+					}).join(', ');
+					var paramsAddendum = '';
+					if (pS.length > 0) {
+						paramsAddendum = '<${pS}>';
+					}
+					return defTypeToSwiftName(t.get()) + paramsAddendum;
+				case TAnonymous(a):
+					var b = a.get().fields.map(field -> {
+						return '${field.name}:${Tools.typeToName(field.type)}';
+					}).join(', ');
+					return '(${b})';
+				case TMono(t):
+					var followed = TypeTools.follow(type);
+					return switch (followed) {
+						case TMono(t):
+							'Any';
+						default:
+							'Any';
+							typeToName(type, printSome);
+					}
 				default:
 					return 'UNMATCHEDPATTERN ${type.getName()}';
 			}
@@ -1146,6 +1265,16 @@ class Tools {
 		comps.push(enumType.name);
 		return comps.join('_');
 	}
+
+	public static function typeParamsSignature(params:Array<TypeParameter>) {
+		return params.map(param -> {
+			if (param.defaultType == null) {
+				return Tools.typeToName(param.t);
+			} else {
+				return '${Tools.typeToName(param.t)}:${Tools.typeToName(param.defaultType)}';
+			}
+		}).join(', ');
+	}
 }
 
 class PropertyTools {
@@ -1154,7 +1283,8 @@ class PropertyTools {
 			case FVar(read, write):
 				switch (read) {
 					case AccNormal:
-						Context.fatalError('Getter default is not yet supported', Context.currentPos());
+						return '';
+						// Context.fatalError('Getter default is not yet supported', cf.pos);
 					case AccNo:
 						return '';
 					case AccCall, AccCtor:

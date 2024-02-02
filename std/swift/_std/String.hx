@@ -55,8 +55,8 @@ extern class String {
 	inline function lastIndexOf(str:String, ?startIndex:Int = 0):Int {
 		var s = this;
 		var str = str.substring(startIndex); //force creation of variable so it can be used in __swift__
-		untyped __swift__('var index = s!.lastIndex(of: str!)');
-		return untyped __swift__('s!.distance(from: s!.startIndex, to: index!)');
+		untyped swift.Syntax.plainCode('var index = s!.lastIndex(of: str!)');
+		return untyped swift.Syntax.plainCode('s!.distance(from: s!.startIndex, to: index!)');
 	}
 	function split(delimiter:String):Array<String>;
 	function substr(pos:Int, ?len:Int):String;

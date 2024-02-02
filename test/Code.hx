@@ -26,7 +26,7 @@ class TestClass implements IHaxeSwift {
 		trace(test.name);
 		field = One;
 		trace("Create Code class!");
-		trace('Here is a Int ${Std.string(giveMeAInt())}');
+		trace('Here is a Int ${Stdd.string(giveMeAInt())}');
 		TestClass.test();
 		var e = TestEnum.One;
 		

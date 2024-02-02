@@ -8,6 +8,7 @@ package swift;
 		src/swiftcompiler/Compiler.hx
 **/
 extern class Syntax {
-	public static function code(code: String): Void;
+	public static function plainCode(code: String): Void;
+	public static function code(code:String, args:haxe.Rest<Dynamic>):Void;
 	public static function unwrap<T>(value: T): T;
 }

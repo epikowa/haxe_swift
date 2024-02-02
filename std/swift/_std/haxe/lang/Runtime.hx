@@ -8,7 +8,7 @@ class Runtime {
     }
 
     @:swiftLabels(object, "_") public static function printNative(object:Any):Void {
-        Syntax.code('print(object!)');
+        Syntax.plainCode('print(object!)');
     }
 }
 
