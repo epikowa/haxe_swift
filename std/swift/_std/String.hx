@@ -1,6 +1,7 @@
 package;
 
 import swift.Syntax;
+import swift.Syntax;
 import swift.HxOverrides.Substring;
 import haxe.lang.Runtime;
 import swift.HxOverrides;
@@ -31,53 +32,21 @@ extern class String {
 	@:overload(function(char:Substring):Void {})
 	function new(_:Character):Void;
 
-	inline function toUpperCase():String {
-		return swift.HxOverrides.toUpperCase(this);
-	}
-	inline function toLowerCase():String {
-		return HxOverrides.toLowerCase(this);
-	}
-	inline function charAt(index:Int):String {
-		return HxOverrides.charAt(this, index);
-	}
-	inline function charCodeAt(index:Int):Null<Int> {
-		var hxChar = this.charAt(index);
-		Runtime.printNative(hxChar);
-		var char = new swift._native.Character(hxChar);
-		return UInt8.toInt(char.asciiValue);
-	}
-	inline function indexOf(str:String, ?startIndex:Int = 0):Int {
-		var s = this;
-		var str = str.substring(startIndex); //force creation of variable so it can be used in __swift__
-		untyped __swift__('var index = s!.index(of: str!)');
-		return untyped __swift__('s!.distance(from: s!.startIndex, to: index!)');
-	}
+	function toUpperCase():String;
+	function toLowerCase():String;
+	function charAt(index:Int):String;
+	function charCodeAt(index:Int):Null<Int>;
+	function indexOf(str:String, ?startIndex:Int = 0):Int;
 	inline function lastIndexOf(str:String, ?startIndex:Int = 0):Int {
-		var s = this;
-		var str = str.substring(startIndex); //force creation of variable so it can be used in __swift__
-		untyped swift.Syntax.plainCode('var index = s!.lastIndex(of: str!)');
-		return untyped swift.Syntax.plainCode('s!.distance(from: s!.startIndex, to: index!)');
+		throw 'Not implemented';
+		// var s = this;
+		// var str = str.substring(startIndex); //force creation of variable so it can be used in __swift__
+		// untyped swift.Syntax.plainCode('var index = s!.lastIndex(of: str!)');
+		// return untyped swift.Syntax.plainCode('s!.distance(from: s!.startIndex, to: index!)');
 	}
 	function split(delimiter:String):Array<String>;
 	function substr(pos:Int, ?len:Int):String;
-	inline function substring(startIndex:Int, ?endIndex:Int):String {
-		if (endIndex == null) {
-			endIndex = this.length;
-		}
-		if (startIndex < 0) startIndex = 0;
-		if (endIndex < 0) endIndex = 0;
-		if (startIndex > endIndex) {
-			var tmp = startIndex;
-			startIndex = endIndex;
-			endIndex = tmp;
-		}
-		if (endIndex > this.length) {
-			endIndex = this.length;
-		}
-		if (startIndex > this.length) return '';
-		
-		return HxOverrides.stringSlicing(this, startIndex, endIndex-1);
-	}
+	function substring(startIndex:Int, ?endIndex:Int):String;
 	inline function toString():String {
 		return new String(this);
 	}

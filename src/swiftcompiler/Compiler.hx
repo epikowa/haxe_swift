@@ -184,7 +184,7 @@ class Compiler extends DirectToStringCompiler {
 							paramsNames.push('${paramLabelAndName(compileVarName(param.name))} : Optional<${Tools.typeToName(t.get().type)}>');
 						}
 					case TFun(args, ret):
-						paramsNames.push('${paramLabelAndName(compileVarName(param.name))} : ${funcDetailsToSignature(args, ret)}');
+						paramsNames.push('${paramLabelAndName(compileVarName(param.name))} : @escaping ${funcDetailsToSignature(args, ret)}');
 						paramsNamesOnly.push(compileVarName(param.name));
 						paramsTypesOnly.push(funcDetailsToSignature(args, ret));
 					default:
@@ -202,10 +202,8 @@ class Compiler extends DirectToStringCompiler {
 			funcDetailsStack.add(new FuncDetails([classType.name, compileVarName(func.field.name)].join('.')));
 			// var funcBody = compileExpressionImpl(func.field.expr(), false);
 
-			$type(func.expr.expr);
-			$type(func.field.expr().expr);
-
-			var tfuncBody = func.expr.expr;
+			var tfuncBody = func.expr?.expr;
+			if (tfuncBody == null) return '';
 			var funcBody = switch (tfuncBody) {
 				case TBlock(el):
 					trace('+++++++++++++ ${func.field.name}');
@@ -400,6 +398,8 @@ class Compiler extends DirectToStringCompiler {
 						}
 						if (c.toString() == "swift.Syntax" && cf.toString() == 'plainCode') {
 							return printCode(el[0]);
+						} else if (c.toString() == "swift.Syntax" && cf.toString() == 'code') {
+							trace('lecode');
 						} else if (c.toString() == "Std" && cf.toString() == 'string') {
 							return 'String(describing: ${printCode(el[0])})';
 						}
@@ -460,6 +460,63 @@ class Compiler extends DirectToStringCompiler {
 				subscript(range: PartialRangeUpTo<Int>) -> SubSequence { self[..<index(startIndex, offsetBy: range.upperBound)] }
 				
 				var length:Optional<Int> {count}
+			}
+
+			extension StringProtocol {
+				func toLowerCase() -> String {
+					return self.lowercased()
+				}
+				
+				func toUpperCase() -> String {
+					return self.uppercased()
+				}
+				
+				func charCodeAt(index:Optional<Int>) -> Optional<Int> {
+					var hxChar = self.charAt(index: index)
+					var char = Character(hxChar!)
+					return Int(char.asciiValue!)
+				}
+				
+				func charAt(index:Optional<Int>) -> Optional<String> {
+					return self.stringSlicing(startIndex: index, endIndex: index)
+				}
+				
+				func indexOf(str:Optional<String>, startIndex:Optional<Int> = 0) -> Optional<Int> {
+					if (startIndex! > self.length!) { return -1 }
+					if (startIndex! < 0) { return -1}
+					
+					var str2 = self.substring(startIndex: startIndex)
+					var index = str2!.index(of: str!)
+					if (index == nil) { return -1 }
+					return self.distance(from: self.startIndex, to: index!) + startIndex!
+				}
+				
+				func substring(startIndex:Optional<Int>, endIndex:Optional<Int> = nil) -> Optional<String> {
+					var startIndex = startIndex
+					var endIndex = endIndex
+					
+					if (endIndex == nil) {
+						endIndex = self.length
+					}
+					if (startIndex! < 0) { startIndex = 0 }
+					if (endIndex! < 0) { endIndex = 0 }
+					if (startIndex! > endIndex!) {
+						let tmp = startIndex
+						startIndex = endIndex
+						endIndex = tmp
+					}
+					if (endIndex! > self.length!) {
+						endIndex! = self.length!
+					}
+					if (startIndex! > self.length!) { return "" }
+					
+					return self.stringSlicing(startIndex: startIndex, endIndex: endIndex!-1)
+				}
+				
+				func stringSlicing(startIndex:Optional<Int>, endIndex:Optional<Int>) -> Optional<String> {
+					let sub = self[startIndex! ... endIndex!]
+					return String(sub)
+				}
 			}
 
 			extension Array {
@@ -579,7 +636,8 @@ class Compiler extends DirectToStringCompiler {
 								case TConst(TString(s)):
 									s;
 								default:
-									"";
+									var e = compileExpressionImplExplicit(el[0], false);
+									e;
 							}
 
 							var args = switch (el[1].expr) {
@@ -645,9 +703,11 @@ class Compiler extends DirectToStringCompiler {
 						return '${compileExpressionImpl(e, false)}.${compileVarName(cf.get().name)}${isAssignmentTarget ? '': '!'}';
 					case FEnum(e, ef):
 						return '${e.toString()}.${ef.name}';
+					case FAnon(cf):
+						return '/*UNSUPPORTED FAnon ${cf.toString()}*/';
 					default:
 						trace('***** Unsupported field access ${Type.enumConstructor(fa)}');
-						return 'UNSUPPORTED';
+						return '/*UNSUPPORTED field acces ${fa.getName()}*/';
 				}
 			case TTypeExpr(m):
 				switch (m) {
@@ -903,6 +963,8 @@ class Compiler extends DirectToStringCompiler {
 					}
 				}
 				return '${compileExpressionImpl(e, false)} as! ${typeName}';
+			case TIdent(s):
+				return s;
 			default:
 				trace('expr not supported: ${Type.enumConstructor(expr?.expr)}');
 				return 'expr not supported: ${Type.enumConstructor(expr?.expr)}';
