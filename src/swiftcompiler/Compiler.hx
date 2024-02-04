@@ -481,6 +481,18 @@ class Compiler extends DirectToStringCompiler {
 					return self.stringSlicing(startIndex: index, endIndex: index)
 				}
 				
+				func lastIndexOf(str:Optional<String>, startIndex:Optional<Int> = 0) -> Optional<Int> {
+					if (startIndex! > self.length!) { return -1 }
+					if (startIndex! < 0) { return -1}
+					
+					var str2 = self.substring(startIndex: startIndex)
+					var index = str2!.lastIndex(of: str!)
+					if (index == nil) { return -1 }
+					return self.distance(from: self.startIndex, to: index!) + startIndex!
+					
+					return -1
+				}
+				
 				func indexOf(str:Optional<String>, startIndex:Optional<Int> = 0) -> Optional<Int> {
 					if (startIndex! > self.length!) { return -1 }
 					if (startIndex! < 0) { return -1}

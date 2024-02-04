@@ -37,13 +37,7 @@ extern class String {
 	function charAt(index:Int):String;
 	function charCodeAt(index:Int):Null<Int>;
 	function indexOf(str:String, ?startIndex:Int = 0):Int;
-	inline function lastIndexOf(str:String, ?startIndex:Int = 0):Int {
-		throw 'Not implemented';
-		// var s = this;
-		// var str = str.substring(startIndex); //force creation of variable so it can be used in __swift__
-		// untyped swift.Syntax.plainCode('var index = s!.lastIndex(of: str!)');
-		// return untyped swift.Syntax.plainCode('s!.distance(from: s!.startIndex, to: index!)');
-	}
+	function lastIndexOf(str:String, ?startIndex:Int = 0):Int;
 	function split(delimiter:String):Array<String>;
 	function substr(pos:Int, ?len:Int):String;
 	function substring(startIndex:Int, ?endIndex:Int):String;
