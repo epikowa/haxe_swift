@@ -1,6 +1,8 @@
 package swiftcompiler;
 
 // Make sure this code only exists at compile-time.
+import haxe.macro.Expr;
+import haxe.macro.Expr.ExprOf;
 import haxe.macro.TypeTools;
 import haxe.macro.Expr.TypeParam;
 import haxe.macro.Expr.Binop;
@@ -1330,21 +1332,26 @@ class OpTools {
 					}
 				return '${compiler.compileExpressionImplExplicit(e1, false, true)} = ${compiler.compileExpressionImpl(e2, false)}';
 			case OpLt:
-				return '${compiler.compileExpressionImpl(e1, false)}${compiler.unwrapExprIfNecessary(e1)} < ${compiler.compileExpressionImpl(e2, false)}${compiler.unwrapExprIfNecessary(e2)}';
+				return '(${compiler.compileExpressionImpl(e1, false)}${compiler.unwrapExprIfNecessary(e1)} < ${compiler.compileExpressionImpl(e2, false)}${compiler.unwrapExprIfNecessary(e2)})';
+			case OpLte:
+				return '(${compiler.compileExpressionImpl(e1, false)}${compiler.unwrapExprIfNecessary(e1)} <= ${compiler.compileExpressionImpl(e2, false)}${compiler.unwrapExprIfNecessary(e2)})';
 			case OpGt:
 				var isNullType1 = false;
-				return '${compiler.compileExpressionImpl(e1, false)}${compiler.unwrapExprIfNecessary(e1)} > ${compiler.compileExpressionImpl(e2, false)}${compiler.unwrapExprIfNecessary(e2)}';
+				return '(${compiler.compileExpressionImpl(e1, false)}${compiler.unwrapExprIfNecessary(e1)} > ${compiler.compileExpressionImpl(e2, false)}${compiler.unwrapExprIfNecessary(e2)})';
+			case OpGte:
+				var isNullType1 = false;
+				return '(${compiler.compileExpressionImpl(e1, false)}${compiler.unwrapExprIfNecessary(e1)} >= ${compiler.compileExpressionImpl(e2, false)}${compiler.unwrapExprIfNecessary(e2)})';
 			case OpAdd:
-				return '${compiler.compileExpressionImpl(e1, false)}${compiler.unwrapExprIfNecessary(e1)} + ${compiler.compileExpressionImpl(e2, false)}${compiler.unwrapExprIfNecessary(e2)}';
+				return '(${compiler.compileExpressionImpl(e1, false)}${compiler.unwrapExprIfNecessary(e1)} + ${compiler.compileExpressionImpl(e2, false)}${compiler.unwrapExprIfNecessary(e2)})';
 			case OpSub:
-				return '${compiler.compileExpressionImpl(e1, false)}${compiler.unwrapExprIfNecessary(e1)} - ${compiler.compileExpressionImpl(e2, false)}${compiler.unwrapExprIfNecessary(e2)}';
+				return '(${compiler.compileExpressionImpl(e1, false)}${compiler.unwrapExprIfNecessary(e1)} - ${compiler.compileExpressionImpl(e2, false)}${compiler.unwrapExprIfNecessary(e2)})';
 			case OpEq:
 				if (Tools.isTypeNullable(e1.t) || Tools.isTypeNullable(e2.t)) {
 					return '${compiler.compileExpressionImplExplicit(e1, false, true)} == ${compiler.compileExpressionImplExplicit(e2, false, true)}';
 				}
-				return '${compiler.compileExpressionImpl(e1, false)} == ${compiler.compileExpressionImpl(e2, false)}';
+				return '(${compiler.compileExpressionImpl(e1, false)} == ${compiler.compileExpressionImpl(e2, false)})';
 			case OpAssignOp(op):
-				return '${compiler.compileExpressionImpl(e1, false)}${compiler.unwrapExprIfNecessary(e1)} = ${generateBinop(op, e1, e2, compiler)}';
+				return '(${compiler.compileExpressionImpl(e1, false)}${compiler.unwrapExprIfNecessary(e1)} = ${generateBinop(op, e1, e2, compiler)})';
 			default:
 				trace('operator ${Type.enumConstructor(op)} not implemented yet');
 				return 'UNSUPPORTED${Type.enumConstructor(op)}';
@@ -1352,3 +1359,25 @@ class OpTools {
 	}
 }
 #end
+
+class UnitTest {
+	macro public static function build(expr:Expr) {
+		switch (expr.expr) {
+			case EBlock(els):
+				var mapped = els.map(el -> {
+					switch (el.expr) {
+						case EVars(vars):
+							el;
+						default:
+							var ifExpr:Expr = {expr: EIf(el, macro {haxe.lang.Runtime.printNative('OK');}, macro {haxe.lang.Runtime.printNative('Fail');}), pos: Context.currentPos()};
+							return {expr: EBlock([ifExpr]), pos: Context.currentPos()};
+					}
+				});
+
+				return macro $b{mapped};
+			default:
+				return macro {trace('no');};
+		}
+		return macro {trace('plop');};
+	}
+}

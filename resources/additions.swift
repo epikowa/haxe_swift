@@ -92,6 +92,31 @@ extension StringProtocol {
     let sub = self[startIndex!...endIndex!]
     return String(sub)
   }
+
+  func substr(pos:Optional<Int>, len:Optional<Int> = nil) -> Optional<String> {
+    var pos = pos
+    var len = len
+    if (pos! < 0) {
+      pos = self.length! + pos!;
+      if (pos! < 0) {
+        pos = 0
+      }
+    }
+
+    var endIndex:Optional<Int> = nil
+    if (pos! + len! > self.length!) {
+      len = nil
+    }
+    if (len != nil) {
+      endIndex = pos! + len!
+    }
+
+    return self.substring(startIndex: pos, endIndex: endIndex)
+  }
+
+  func split(delimiter:Optional<String>) -> Optional<Array<Optional<String>>> {
+    return self.split(delimiter: delimiter)
+  }
 }
 
 extension Array {

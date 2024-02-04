@@ -5,7 +5,7 @@ import PackageDescription
 let package = Package(
     name: "MyLibrary",
     platforms: [
-        .macOS(.v10_15),
+        .macOS(.v11),
     ],
     products: [
         .executable(name: "MyLibrary", targets: ["MyLibrary"])
