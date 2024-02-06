@@ -13,7 +13,8 @@
 -D swift-output=out
 
 # Main function
--main IfTest
+#-main Access
+-main Af
 -D swift
 -D swift
 -D reflaxe_runtime
@@ -29,3 +30,4 @@
 -D retain-untyped-meta
 swiftcompiler
 --xml docs/types.xml
+--times
