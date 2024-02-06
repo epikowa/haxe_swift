@@ -189,6 +189,10 @@ class Compiler extends DirectToStringCompiler {
 						paramsNames.push('${paramLabelAndName(compileVarName(param.name))} : @escaping ${funcDetailsToSignature(args, ret)}');
 						paramsNamesOnly.push(compileVarName(param.name));
 						paramsTypesOnly.push(funcDetailsToSignature(args, ret));
+					case TEnum(t, params):
+						paramsNamesOnly.push(compileVarName(param.name));
+						paramsTypesOnly.push('HxEnumConstructor<${Tools.typeToName(param.type)}>');
+						paramsNames.push('${paramLabelAndName(compileVarName(param.name))} : Optional<HxEnumConstructor<${Tools.typeToName(param.type)}>>');
 					default:
 						throw 'Parameters of type ${param.type.getName()} are not supported';
 				}
@@ -356,11 +360,11 @@ class Compiler extends DirectToStringCompiler {
 			var params = construct.args.map((arg) -> '${arg.name}').join(', ');
 
 			if (params.length > 0)
-				cases.push('static func ${construct.name}(${paramsWithTypes}) -> HxEnumConstructor {
+				cases.push('static func ${construct.name}(${paramsWithTypes}) -> HxEnumConstructor<${enumType.name}> {
 					return (_hx_name: "${construct.name}", _hx_index: ${constructIndex}, enum: "${enumType.name}", params: [${params}]);
 				}');
 			 else
-				cases.push('static var ${construct.name}:HxEnumConstructor = (_hx_name: "${construct.name}", _hx_index: ${constructIndex}, enum: "${enumType.name}", params: [])');
+				cases.push('static var ${construct.name}:HxEnumConstructor<${enumType.name}> = (_hx_name: "${construct.name}", _hx_index: ${constructIndex}, enum: "${enumType.name}", params: [])');
 				// 	cases.push('case ${construct.name}');
 			 
 			 constructIndex++;
@@ -434,7 +438,7 @@ class Compiler extends DirectToStringCompiler {
 			}
 
 			var content = '@main\nclass _Main {\n\tstatic func main() throws ->Void {\n\t${s}\n\t}\n}\n';
-			content += '\ntypealias HxEnumConstructor = (_hx_name: String, _hx_index: Int, enum: String, params: Array<Any>)';
+			content += '\ntypealias HxEnumConstructor<T> = (_hx_name: String, _hx_index: Int, enum: String, params: Array<Any>)';
 			content += '\nclass HxError:Error {
 				init(value:Any) {
 

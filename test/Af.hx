@@ -7,6 +7,16 @@ import swift.Syntax;
 class Af {
 	public static function main() {
         test();
+		printInfos(PersonType.Individual('an individual'));
+	}
+
+	static function printInfos(person:PersonType) {
+		switch (person) {
+			case Individual(name):
+				Runtime.printNative("Individual " + name);
+			case Organisation(name):
+				Runtime.printNative("Organisation " + name);
+		}
 	}
 
 	public static function test() {
@@ -209,4 +219,9 @@ class Af {
 		#end
     });
 	}
+}
+
+enum PersonType {
+	Individual(name: String);
+	Organisation(name: String);
 }
