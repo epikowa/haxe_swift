@@ -1368,8 +1368,19 @@ class UnitTest {
 					switch (el.expr) {
 						case EVars(vars):
 							el;
+						case EBinop(OpEq, e1, e2):
+							var printed = new haxe.macro.Printer().printExpr(el);
+							var failBlock = macro {
+								haxe.lang.Runtime.printNative('Fail ' + $v{StringTools.replace(printed, '"', '\\"')});
+								haxe.lang.Runtime.printNative('Got: ');
+								haxe.lang.Runtime.printNative(${e1});
+							};
+							var ifExpr:Expr = {expr: EIf(el, macro {haxe.lang.Runtime.printNative('OK' + $v{StringTools.replace(printed, '"', '\\"')});}, failBlock), pos: Context.currentPos()};
+							return {expr: EBlock([ifExpr]), pos: Context.currentPos()};
 						default:
-							var ifExpr:Expr = {expr: EIf(el, macro {haxe.lang.Runtime.printNative('OK');}, macro {haxe.lang.Runtime.printNative('Fail');}), pos: Context.currentPos()};
+							var printed = new haxe.macro.Printer().printExpr(el);
+							var failBlock = macro {haxe.lang.Runtime.printNative('Fail ' + $v{StringTools.replace(printed, '"', '\\"')});};
+							var ifExpr:Expr = {expr: EIf(el, macro {haxe.lang.Runtime.printNative('OK' + $v{StringTools.replace(printed, '"', '\\"')});}, failBlock), pos: Context.currentPos()};
 							return {expr: EBlock([ifExpr]), pos: Context.currentPos()};
 					}
 				});

@@ -2,7 +2,9 @@ extension StringProtocol {
   func index<S: StringProtocol>(of string: S, options: String.CompareOptions = []) -> Index? {
     range(of: string, options: options)?.lowerBound
   }
-  func lastIndex<S: StringProtocol>(of string: S, options: String.CompareOptions = []) -> Index? {
+  func lastIndex<S: StringProtocol>(
+    of string: S, options: String.CompareOptions = [String.CompareOptions.backwards]
+  ) -> Index? {
     range(of: string, options: options)?.lowerBound
   }
   subscript(offset: Int) -> Character { self[index(startIndex, offsetBy: offset)] }
@@ -38,26 +40,35 @@ extension StringProtocol {
 
   func charCodeAt(index: Int?) -> Int? {
     let hxChar = self.charAt(index: index)
+    if hxChar == "" { return nil }
     let char = Character(hxChar!)
     return Int(char.asciiValue!)
   }
 
   func charAt(index: Int?) -> String? {
+    if index! < 0 || index! > self.length! - 1 { return "" }
     return self.stringSlicing(startIndex: index, endIndex: index)
   }
 
-  func lastIndexOf(str: String?, startIndex: Int? = 0) -> Int? {
-    if startIndex! > self.length! { return -1 }
+  func lastIndexOf(str: String?, startIndex: Int? = nil) -> Int? {
+    var startIndex = startIndex
+    if str == "" {
+      if startIndex == nil { startIndex = self.length! + 1 }
+      return Swift.min(self.length!, startIndex!)
+    }
+    if startIndex == nil { startIndex = self.length! - 1 }
+    if startIndex! > self.length! { startIndex = self.length! - 1 }
     if startIndex! < 0 { return -1 }
 
-    let str2 = self.substring(startIndex: startIndex)
-    let index = str2!.lastIndex(of: str!)
+    let str2 = self.substring(startIndex: 0, endIndex: startIndex! + str!.length!)
+    let index: Index? = str2!.lastIndex(of: str!)
     if index == nil { return -1 }
-    return self.distance(from: self.startIndex, to: index!) + startIndex!
+    return self.distance(from: str2!.startIndex, to: index!)
   }
 
   func indexOf(str: String?, startIndex: Int? = 0) -> Int? {
-    if startIndex! > self.length! { return -1 }
+    if str! == "" { return Swift.min(0 + startIndex!, self.length!) }
+    if startIndex! > self.length! - 1 { return -1 }
     if startIndex! < 0 { return -1 }
 
     let str2 = self.substring(startIndex: startIndex)
@@ -83,7 +94,10 @@ extension StringProtocol {
     if endIndex! > self.length! {
       endIndex! = self.length!
     }
-    if startIndex! > self.length! { return "" }
+    if startIndex! > self.length! - 1 { return "" }
+    if startIndex! == endIndex! {
+      return ""
+    }
 
     return self.stringSlicing(startIndex: startIndex, endIndex: endIndex! - 1)
   }
@@ -93,29 +107,44 @@ extension StringProtocol {
     return String(sub)
   }
 
-  func substr(pos:Optional<Int>, len:Optional<Int> = nil) -> Optional<String> {
+  func substr(pos: Int?, len: Int? = nil) -> String? {
     var pos = pos
     var len = len
-    if (pos! < 0) {
-      pos = self.length! + pos!;
-      if (pos! < 0) {
+
+    if pos! < 0 {
+      pos = self.length! + pos!
+      if pos! < 0 {
         pos = 0
       }
     }
 
-    var endIndex:Optional<Int> = nil
-    if (pos! + len! > self.length!) {
-      len = nil
+    if len == nil {
+      len = self.length! - pos!
     }
-    if (len != nil) {
-      endIndex = pos! + len!
+    var endIndex: Int? = nil
+    if pos! + len! > self.length! {
+      len = self.length!
+    }
+    if len != nil {
+      endIndex = pos! + len! + 1
     }
 
-    return self.substring(startIndex: pos, endIndex: endIndex)
+    if len == 0 {
+      return ""
+    }
+
+    if len! < 0 {
+      return String(self)
+    }
+
+    return self.substring(startIndex: pos, endIndex: endIndex! - 1)
   }
 
-  func split(delimiter:Optional<String>) -> Optional<Array<Optional<String>>> {
-    return self.split(delimiter: delimiter)
+  func split(delimiter: String?) -> [String?]? {
+    if delimiter! == "" {
+      return Array(self).map({ c -> String? in String(c) })
+    }
+    return self.components(separatedBy: delimiter!)
   }
 }
 
