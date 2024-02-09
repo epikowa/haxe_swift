@@ -151,3 +151,9 @@ extension StringProtocol {
 extension Array {
   var length: Int? { count }
 }
+
+class _hxHelpers {
+  static func isOfType<T>(value:Optional<Any>, type:Optional<T.Type>) -> Bool {
+        return value! is T?
+  }
+}

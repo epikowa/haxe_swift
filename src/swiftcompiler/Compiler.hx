@@ -180,6 +180,10 @@ class Compiler extends DirectToStringCompiler {
 							paramsNamesOnly.push(compileVarName(param.name));
 							paramsTypesOnly.push(Tools.typeToName(params[0]));
 							paramsNames.push('${paramLabelAndName(compileVarName(param.name))} : Optional<${Tools.typeToName(params[0])}>');
+						} else if (Tools.isAbstractTypeClassT(t.get())) {
+							paramsNamesOnly.push(compileVarName(param.name));
+							paramsTypesOnly.push('${Tools.typeToName(params[0])}.Type');
+							paramsNames.push('${paramLabelAndName(compileVarName(param.name))} : Optional<${Tools.typeToName(params[0])}.Type>');
 						} else {
 							paramsNamesOnly.push(compileVarName(param.name));
 							paramsTypesOnly.push(Tools.typeToName(t.get().type));
@@ -408,6 +412,8 @@ class Compiler extends DirectToStringCompiler {
 							trace('lecode');
 						} else if (c.toString() == "Std" && cf.toString() == 'string') {
 							return 'String(describing: ${printCode(el[0])})';
+						} else if (c.toString() == "Std" && cf.toString() == 'is') {
+							return '_hxHelpers.isOfType(${compileExpressionImplExplicit(el[0], false)}, ${compileExpressionImplExplicit(el[1], false)})';
 						}
 					case TField(_, FInstance(c, params, cf)):
 						if (cf.get().meta.has(':throws')) {
@@ -529,7 +535,14 @@ class Compiler extends DirectToStringCompiler {
 					if (paramsNames[i] != null && paramsNames[i] != '') {
 						var label = getLabelFromMap(labelsMap, paramsNames[i]);
 						if (label != '_') {
-							paramsString.push('${label} : ${compileExpressionImplExplicit(param, false)}');
+							var extra = switch (param.t) {
+								case TType(t, params):
+									'.self';
+								default:
+									'';
+							};
+
+							paramsString.push('${label} : ${compileExpressionImplExplicit(param, false)}${extra}');
 						} else {
 							paramsString.push('${compileExpressionImplExplicit(param, false, true)}');
 						}
@@ -553,6 +566,8 @@ class Compiler extends DirectToStringCompiler {
 					case TField(_, FStatic(c, cf)), TField(_, FInstance(c, _, cf)):
 						if (c.toString() == "swift.Syntax" && cf.toString() == 'plainCode') {
 							return printCode(el[0]);
+						} else if (c.toString() == "Std" && cf.toString() == '_is') {
+							return '_hxHelpers.isOfType(value: ${compileExpressionImplExplicit(el[0], false)}, type: ${compileExpressionImplExplicit(el[1], false)}.self)';
 						}
 
 						if (c.toString() == "swift.Syntax" && cf.toString() == 'code') {
@@ -642,8 +657,11 @@ class Compiler extends DirectToStringCompiler {
 						return Tools.classTypeToSwiftName(c.get());
 					case TEnumDecl(e):
 						return e.toString();
+					case TAbstract(a):
+						return Tools.typeToName(a.get().type);
 					default:
 						trace('ttypeexpr not supported: ${Type.enumConstructor(m)}');
+						return  Type.enumConstructor(m);
 				}
 			case TLocal(v):
 				trace(v.t.getName());
@@ -1052,6 +1070,14 @@ class Tools {
 		);
 	}
 
+	public static function isAbstractTypeClassT(abstractType:AbstractType) {
+		return (
+			abstractType.module == 'Class'
+			&& abstractType.pack.length == 0
+			&& abstractType.name == 'Class'
+		);
+	}
+
 	public static function isTypeSome(t:Type):Bool {
 		switch (t) {
 			case TAbstract(t, params):
@@ -1170,6 +1196,11 @@ class Tools {
 								typeToName(p);
 							}).join(', ');
 							return 'Optional<${pS}>';
+						case 'Class':
+							var pS = t.get().params.map((p) -> {
+								typeToName(p.t);
+							}).join(', ');
+							return '${typeToName(t.get().params[0].t)}.Type';
 						default:
 							var followedType = TypeTools.followWithAbstracts(type);
 							trace(type);

@@ -1,5 +1,6 @@
 package;
 
+import swift.HxHelpers;
 import swiftcompiler.Compiler.UnitTest;
 import haxe.lang.Runtime;
 import swift.Syntax;
@@ -8,6 +9,13 @@ class Af {
 	public static function main() {
         test();
 		printInfos(PersonType.Individual('an individual'));
+		printStuff(Std.string(PersonType.Individual("none")));
+		// Runtime.printNative(Std.isOfType("", String));
+		Runtime.printNative(Std.is(PersonType.Individual, PersonType));
+	}
+
+	static function printStuff(stuff:Any) {
+		untyped swift.Syntax.code('print({0})', [stuff]);
 	}
 
 	static function printInfos(person:PersonType) {
