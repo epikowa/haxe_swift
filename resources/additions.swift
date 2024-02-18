@@ -156,4 +156,10 @@ class _hxHelpers {
   static func isOfType<T>(value:Optional<Any>, type:Optional<T.Type>) -> Bool {
         return value! is T?
   }
+
+  static func isOfTypeEnum(value:Optional<Any>, type:String) -> Bool {
+        let mirror = Mirror(reflecting: value!)
+        let actual = mirror.descendant("enum")
+        return "Enum<" + String(describing: actual) + ">" == type
+  }
 }

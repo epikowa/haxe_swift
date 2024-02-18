@@ -566,7 +566,17 @@ class Compiler extends DirectToStringCompiler {
 					case TField(_, FStatic(c, cf)), TField(_, FInstance(c, _, cf)):
 						if (c.toString() == "swift.Syntax" && cf.toString() == 'plainCode') {
 							return printCode(el[0]);
-						} else if (c.toString() == "Std" && cf.toString() == '_is') {
+						} else if (c.toString() == "Std" && (cf.toString() == '_is' || cf.toString() == 'isOfType')) {
+							switch (el[1].t) {
+								case TType(t, params):
+									var typeName = t.toString();
+									if (typeName.indexOf('Class<') == 0) {
+										return '_hxHelpers.isOfType(value: ${compileExpressionImplExplicit(el[0], false)}, type: ${compileExpressionImplExplicit(el[1], false)}.self)';
+									} else if (typeName.indexOf('Enum<') == 0) {
+										return '_hxHelpers.isOfTypeEnum(value: ${compileExpressionImplExplicit(el[0], false)}, type: "${Tools.escapeStringConst(t.toString())}")';
+									}
+								default:
+							}
 							return '_hxHelpers.isOfType(value: ${compileExpressionImplExplicit(el[0], false)}, type: ${compileExpressionImplExplicit(el[1], false)}.self)';
 						}
 
